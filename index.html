@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo GitHub Auth & Cookie Persistence</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <svg height="32" viewBox="0 0 16 16" version="1.1" width="32" fill="currentColor">
+          <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>
+        </svg>
+        <div>
+          <h1>Git-as-a-DB: Auth & Cookie Demo</h1>
+          <p class="subtitle">Xác thực tài khoản GitHub & Ghi nhớ phiên bằng Cookie 30 ngày</p>
+        </div>
+      </div>
+      <div id="header-user-status" class="header-status">
+        <span class="status-indicator checking"></span> Đang kiểm tra Cookie...
+      </div>
+    </header>
+
+    <!-- Thông báo lỗi (nếu có từ callback) -->
+    <div id="error-banner" class="banner banner-error hidden"></div>
+    <div id="success-banner" class="banner banner-success hidden"></div>
+
+    <!-- MÀN HÌNH 1: CHƯA ĐĂNG NHẬP -->
+    <section id="login-view" class="card hidden">
+      <div class="card-header">
+        <h2>Đăng nhập để kết nối GitHub</h2>
+        <p>Hệ thống sẽ lưu token vào <strong>Cookie trình duyệt (30 ngày)</strong>. Lần sau bạn truy cập lại hoặc F5 sẽ tự động vào thẳng mà không cần đăng nhập lại.</p>
+      </div>
+
+      <div class="auth-grid">
+        <!-- Cách 1: OAuth -->
+        <div class="auth-box">
+          <div class="auth-box-badge">Cách 1: Trải nghiệm 1-Click</div>
+          <h3>Đăng nhập bằng GitHub OAuth</h3>
+          <p class="auth-desc">Được chuyển hướng đến trang cấp quyền chính thức của GitHub. Sau khi đồng ý, Cookie phiên sẽ tự động được gán.</p>
+          <a href="/api/auth/github" class="btn btn-github">
+            <svg height="20" viewBox="0 0 16 16" width="20" fill="currentColor">
+              <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>
+            </svg>
+            <span>Đăng nhập với GitHub</span>
+          </a>
+          <p class="note">Yêu cầu cấu hình <code>GITHUB_CLIENT_ID</code> trong file <code>.env</code></p>
+        </div>
+
+        <!-- Cách 2: Token PAT -->
+        <div class="auth-box highlighted">
+          <div class="auth-box-badge badge-fast">Cách 2: Test Ngay Không Cần Cấu Hình</div>
+          <h3>Nhập Personal Access Token (PAT)</h3>
+          <p class="auth-desc">Dành cho bạn muốn test nhanh ngay lập tức. Token sẽ được xác thực với GitHub và lưu an toàn vào Cookie 30 ngày.</p>
+
+          <form id="pat-form" class="pat-form">
+            <div class="input-group">
+              <input type="password" id="pat-input" placeholder="ghp_xxxxxxxxxxxx hoặc github_pat_xxxx..." required />
+              <button type="submit" class="btn btn-primary" id="btn-save-pat">Xác nhận & Lưu Cookie</button>
+            </div>
+          </form>
+
+          <div class="pat-help">
+            <span>Chưa có token?</span>
+            <a href="https://github.com/settings/tokens/new?scopes=gist,repo&description=Web-Demo-Storage" target="_blank" rel="noopener">Tạo nhanh 1 token (chọn quyền gist)</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MÀN HÌNH 2: ĐÃ ĐĂNG NHẬP (TỰ ĐỘNG NHẬN DIỆN TỪ COOKIE) -->
+    <section id="dashboard-view" class="hidden">
+      <!-- Cookie Inspector Banner -->
+      <div class="cookie-status-card">
+        <div class="cookie-info-content">
+          <div class="cookie-tag">
+            <span class="status-indicator online"></span>
+            <strong>Cookie Đang Hoạt Động:</strong> Tự động nhận diện phiên từ trình duyệt
+          </div>
+          <div class="cookie-details">
+            <span><strong>Tên Cookie:</strong> <code>gh_token</code></span>
+            <span><strong>Thời hạn lưu:</strong> 30 ngày (Max-Age = 2592000s)</span>
+            <span><strong>Bảo mật:</strong> HttpOnly, SameSite=Lax</span>
+          </div>
+        </div>
+        <div class="cookie-actions">
+          <button id="btn-reload" class="btn btn-secondary" title="F5 lại để kiểm tra Cookie vẫn được giữ nguyên">
+            🔄 Test F5 / Tải Lại Trang
+          </button>
+          <button id="btn-logout" class="btn btn-danger">
+            🚪 Đăng xuất (Xóa Cookie)
+          </button>
+        </div>
+      </div>
+
+      <!-- User Profile & Git as DB Demo -->
+      <div class="dashboard-grid">
+        <!-- Cột trái: User Info -->
+        <div class="card user-card">
+          <div class="user-header">
+            <img id="user-avatar" src="" alt="Avatar" class="avatar" />
+            <div>
+              <h3 id="user-name">Đang tải...</h3>
+              <p id="user-login" class="user-handle">@username</p>
+            </div>
+          </div>
+          <p id="user-bio" class="user-bio"></p>
+
+          <div class="user-stats">
+            <div class="stat-item">
+              <span class="stat-number" id="stat-repos">0</span>
+              <span class="stat-label">Public Repos</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number" id="stat-gists">0</span>
+              <span class="stat-label">Gists</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number" id="stat-followers">0</span>
+              <span class="stat-label">Followers</span>
+            </div>
+          </div>
+
+          <hr class="divider" />
+          <a id="user-link" href="#" target="_blank" class="btn btn-outline full-width">Xem Profile trên GitHub</a>
+        </div>
+
+        <!-- Cột phải: Demo Lưu Code Vào Git (Git as DB) -->
+        <div class="card demo-card">
+          <div class="card-header">
+            <h3>Thử nghiệm: Lưu Code trực tiếp lên GitHub</h3>
+            <p>Code của bạn sẽ được lưu thành 1 <strong>GitHub Gist (Private)</strong> trên chính tài khoản của bạn.</p>
+          </div>
+
+          <form id="save-snippet-form">
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="snippet-title">Tiêu đề đoạn code / ghi chú</label>
+                <input type="text" id="snippet-title" placeholder="VD: Thuật toán QuickSort trong Python" required />
+              </div>
+              <div class="form-group flex-1">
+                <label for="snippet-filename">Tên file</label>
+                <input type="text" id="snippet-filename" value="solution.py" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="snippet-code">Nội dung code</label>
+              <textarea id="snippet-code" rows="8" spellcheck="false"># Đoạn code này được lưu trực tiếp vào GitHub của bạn
+def greet(name):
+    return f"Xin chào {name}, Git chính là Database của bạn!"
+
+print(greet("Developer"))
+</textarea>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="btn-save-code" class="btn btn-primary">
+                💾 Bấm để Lưu Code vào GitHub Gist
+              </button>
+            </div>
+          </form>
+
+          <div id="save-result" class="save-result-box hidden"></div>
+
+          <!-- Danh sách Gists gần đây -->
+          <div class="recent-gists">
+            <h4>Các Gists gần đây trong tài khoản của bạn:</h4>
+            <ul id="gists-list" class="gists-list">
+              <li class="loading-item">Đang tải danh sách...</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

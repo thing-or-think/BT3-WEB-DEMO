@@ -1,0 +1,16 @@
+{
+  "name": "git-auth-cookie-demo",
+  "version": "1.0.0",
+  "description": "Demo dang nhap GitHub va luu phien Cookie vao lai khong can dang nhap",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
