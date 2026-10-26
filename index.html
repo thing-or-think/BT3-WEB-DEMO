@@ -264,8 +264,8 @@ print(greet("Developer"))
 
           <div class="feed-item-actions">
             <div class="action-left">
-              <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
-              <button can-toggle class="play-reaction-btn">⭐ <span>Hữu ích</span></button>
+              <button can-toggle id="btn-like-binary-search" class="play-reaction-btn">❤️ <span>Thích</span></button>
+              <button can-toggle id="btn-star-binary-search" class="play-reaction-btn">⭐ <span>Hữu ích</span></button>
             </div>
             <div class="action-right">
               <button class="btn btn-outline btn-xs" onclick="openCodePreview('Binary Search (Python)', 'def binary_search(arr, x):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == x: return mid\n        elif arr[mid] < x: low = mid + 1\n        else: high = mid - 1\n    return -1')">👁️ Xem Toàn Bộ</button>
@@ -298,8 +298,8 @@ console.log(original.details.age); // 25 (Không bị thay đổi!)</pre>
 
           <div class="feed-item-actions">
             <div class="action-left">
-              <button can-toggle class="play-reaction-btn">🔥 <span>10 điểm</span></button>
-              <button can-toggle class="play-reaction-btn">💡 <span>Hay</span></button>
+              <button can-toggle id="btn-like-deep-clone" class="play-reaction-btn">🔥 <span>10 điểm</span></button>
+              <button can-toggle id="btn-idea-deep-clone" class="play-reaction-btn">💡 <span>Hay</span></button>
             </div>
             <div class="action-right">
               <button class="btn btn-outline btn-xs" onclick="openCodePreview('Deep Clone (JS)', 'const original = { name: &quot;Alice&quot;, details: { age: 25, skills: [&quot;JS&quot;, &quot;Git&quot;] } };\nconst cloned = structuredClone(original);\ncloned.details.age = 26;\nconsole.log(original.details.age);')">👁️ Xem Toàn Bộ</button>
@@ -336,8 +336,8 @@ console.log(original.details.age); // 25 (Không bị thay đổi!)</pre>
 
           <div class="feed-item-actions">
             <div class="action-left">
-              <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
-              <button can-toggle class="play-reaction-btn">⭐ <span>Đánh dấu</span></button>
+              <button can-toggle id="btn-like-is-prime" class="play-reaction-btn">❤️ <span>Thích</span></button>
+              <button can-toggle id="btn-star-is-prime" class="play-reaction-btn">⭐ <span>Đánh dấu</span></button>
             </div>
             <div class="action-right">
               <button class="btn btn-outline btn-xs" onclick="openCodePreview('Kiểm tra số nguyên tố (C++)', 'bool isPrime(int n) {\n    if (n <= 1) return false;\n    if (n <= 3) return true;\n    if (n % 2 == 0 || n % 3 == 0) return false;\n    for (int i = 5; i * i <= n; i += 6) {\n        if (n % i == 0 || n % (i + 2) == 0) return false;\n    }\n    return true;\n}')">👁️ Xem Toàn Bộ</button>

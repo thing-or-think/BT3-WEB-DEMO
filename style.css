@@ -769,10 +769,13 @@ input:focus, textarea:focus, select:focus {
   background: #30363d;
 }
 
-.play-reaction-btn.has-toggled {
-  background: rgba(248, 81, 73, 0.2);
-  border-color: #f85149;
-  color: #ff7b72;
+.play-reaction-btn.has-toggled,
+.play-reaction-btn.toggled,
+.play-reaction-btn[toggled] {
+  background: rgba(248, 81, 73, 0.25) !important;
+  border-color: #f85149 !important;
+  color: #ff7b72 !important;
+  box-shadow: 0 0 10px rgba(248, 81, 73, 0.3);
 }
 
 /* ================================================= */

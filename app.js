@@ -413,6 +413,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const langClass = getLangClass(lang);
     const icon = getLangIcon(lang);
 
+    const uniqueId = gistId || 'snip-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
     item.innerHTML = `
       <div class="feed-item-header">
         <div class="author-info">
@@ -432,8 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       <div class="feed-item-actions">
         <div class="action-left">
-          <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
-          <button can-toggle class="play-reaction-btn">⭐ <span>Đánh dấu</span></button>
+          <button can-toggle id="like-${uniqueId}" class="play-reaction-btn">❤️ <span>Thích</span></button>
+          <button can-toggle id="star-${uniqueId}" class="play-reaction-btn">⭐ <span>Đánh dấu</span></button>
         </div>
         <div class="action-right">
           <button class="btn btn-outline btn-xs" onclick="openCodePreview('${escapeHtml(title)}', ${JSON.stringify(code)}, '${gistId || ''}')">👁️ Xem Toàn Bộ</button>
