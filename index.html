@@ -200,11 +200,24 @@ print(greet("Developer"))
         <div class="feed-header-bar">
           <div>
             <h2>🌐 Danh Sách Code Chia Sẻ Cộng Đồng</h2>
-            <p>Hiển thị dạng danh sách chuẩn, hỗ trợ tương tác thả tim thời gian thực (PlayHTML) và xem/fork code của nhau.</p>
+            <p>Tự động tổng hợp toàn bộ Gist của tất cả thành viên đã đăng nhập (Lưu vết & đồng bộ qua PlayHTML).</p>
           </div>
-          <button id="btn-open-quick-share" class="btn btn-primary">
-            ➕ Đăng Bài Nhanh
-          </button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="btn-refresh-feed" class="btn btn-secondary btn-xs" title="Tải lại Gist mới nhất">🔄 Làm Mới</button>
+            <button id="btn-open-quick-share" class="btn btn-primary btn-xs">➕ Đăng Bài Nhanh</button>
+          </div>
+        </div>
+
+        <!-- Thanh Hiển Thị Danh Sách Thành Viên Tự Động Lưu Trên PlayHTML -->
+        <div class="community-members-bar">
+          <div class="members-title">
+            <span class="status-indicator online"></span>
+            <span>Thành viên đã tham gia (<strong id="member-count">1</strong> người):</span>
+          </div>
+          <div id="members-chip-list" class="members-chip-list">
+            <span class="member-chip active" data-user="all">Tất cả</span>
+            <span class="member-chip" data-user="thing-or-think">@thing-or-think</span>
+          </div>
         </div>
 
         <!-- Form Đăng Bài Nhanh (Thu gọn) -->
@@ -406,6 +419,9 @@ console.log(original.details.age); // 25 (Không bị thay đổi!)</pre>
     try {
       playhtml.init();
       console.log('✅ PlayHTML Engine đã khởi tạo thành công!');
+      if (typeof window.initPlayHTMLCommunitySync === 'function') {
+        window.initPlayHTMLCommunitySync();
+      }
     } catch (err) {
       console.warn('PlayHTML init info:', err);
     }

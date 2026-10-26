@@ -586,6 +586,60 @@ input:focus, textarea:focus, select:focus {
   gap: 1rem;
 }
 
+/* Community Members Bar (PlayHTML Synced) */
+.community-members-bar {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.members-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.members-title strong {
+  color: #58a6ff;
+}
+
+.members-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.member-chip {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.7rem;
+  border-radius: 14px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.member-chip:hover {
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+}
+
+.member-chip.active {
+  background: rgba(47, 129, 247, 0.2);
+  border-color: var(--accent-color);
+  color: #58a6ff;
+  font-weight: 600;
+}
+
 .quick-share-box {
   margin-top: 1.2rem;
   padding: 1.2rem;

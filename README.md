@@ -1,32 +1,28 @@
-# BT3-WEB-DEMO: Git-as-a-DB + PlayHTML Realtime Engine
+# BT3-WEB-DEMO: Git-as-a-DB + PlayHTML Auto-Directory & Gist Aggregator
 
 > 🌐 **Live Demo (GitHub Pages):** [https://thing-or-think.github.io/BT3-WEB-DEMO/](https://thing-or-think.github.io/BT3-WEB-DEMO/)
 
-Dự án kết hợp kiến trúc **"Git chính là Database"** với thư viện cộng tác **PlayHTML (`playhtml.fun`)**, chạy hoàn toàn 100% trên nền tảng web tĩnh **GitHub Pages** (Zero-Backend).
+Dự án kết hợp kiến trúc **"Git chính là Database"** với thư viện **PlayHTML (`playhtml.fun`)**, chạy hoàn toàn 100% trên nền tảng web tĩnh **GitHub Pages** (Zero-Backend).
 
 ---
 
-## 🌟 Bộ Ba Tính Năng Cốt Lõi
+## 🌟 Tính năng nổi bật
 
-### 1. 💾 Lưu trữ trên GitHub Gist (Git as a DB)
-- Mỗi bài code/snippet được lưu trực tiếp thành một GitHub Gist trên tài khoản của người dùng qua GitHub REST API.
-- Có sẵn lịch sử commit (Git Version History). Người dùng sở hữu 100% dữ liệu của mình.
+### 1. 👥 Tự động ghi danh thành viên vào PlayHTML Realtime
+- Bất kỳ ai vào web sau khi đăng nhập (hoặc tự động nhận diện từ Cookie 30 ngày), **username của họ sẽ được tự động lưu vào kênh dữ liệu PlayHTML (`createPageData`)**.
+- Danh bạ thành viên này tồn tại vĩnh viễn và đồng bộ ngay lập tức cho tất cả mọi người đang mở web.
 
-### 2. 🍪 Ghi nhớ phiên làm việc bằng Cookie (30 Ngày)
-- Khi nhập GitHub Token (quyền `gist`), token được lưu an toàn vào Cookie trình duyệt với thời hạn 30 ngày (`max-age=2592000`).
-- Lần sau mở lại web hoặc F5: Tự động đăng nhập thẳng vào trang cá nhân trong 0.2 giây mà không bao giờ phải đăng nhập lại.
+### 2. 🌐 Tự động tổng hợp Gist của TOÀN BỘ thành viên lên Feed Cộng Đồng
+- Danh sách Feed tự động truy vấn GitHub API để lấy các bài tập/code Gist mới nhất của **tất cả các thành viên trong danh bạ PlayHTML**.
+- **User Offline vẫn xem bình thường:** Dù bạn bè đã tắt máy đi ngủ, Gist của họ vẫn xuất hiện trên Feed để mọi người cùng xem, sao chép hoặc Fork về tài khoản cá nhân.
+- Hỗ trợ bộ lọc nhanh bằng các thẻ **Member Chips**: Bấm vào `@username` của bất kỳ ai để lọc riêng các bài viết của người đó.
 
-### 3. 🎨 Bảng Tương Tác Thời Gian Thực với PlayHTML (`playhtml.fun`)
-- Tích hợp thư viện **PlayHTML** cho phép tạo bảng kéo thả thẻ code cộng đồng:
-  - `can-move`: Kéo thả các thẻ code tự do, tọa độ đồng bộ trực tiếp tới mọi người đang duyệt web.
-  - `can-toggle`: Nút thả tim ❤️ / đánh giá bài viết.
-  - `can-duplicate`: Nhân bản các mẩu giấy ghi chú (Sticky Notes) trên bảng.
-  - Nút **"Lưu & Ghim lên Bảng PlayHTML"**: Vừa lưu vào Gist, vừa tạo thẻ realtime cho bạn bè cùng lớp thấy ngay lập tức.
+### 3. 🍪 Ghi nhớ phiên làm việc bằng Cookie (30 Ngày)
+- Token được lưu an toàn vào Cookie trình duyệt với thời hạn 30 ngày (`max-age=2592000`).
+- Lần sau mở lại web hoặc F5: Tự động đăng nhập thẳng vào trang cá nhân trong 0.2 giây mà không cần nhập lại token.
 
-### 4. 🔍 Xem & Fork Code của người khác (Kể cả khi họ Offline)
-- Người dùng khác dù tắt máy, đi ngủ hay offline thì code vẫn nằm vĩnh viễn trên máy chủ của GitHub.
-- Bạn có thể gõ `@username` bất kỳ (VD: `@thing-or-think`, `@torvalds`) để tải toàn bộ Gist của họ.
-- Bấm **"🍴 Fork"** để sao chép trực tiếp đoạn code đó về tài khoản cá nhân của bạn chỉ với 1 click.
+### 4. ❤️ Tương tác thời gian thực với PlayHTML
+- Các nút phản ứng (❤️ Thích, ⭐ Hữu ích...) sử dụng thuộc tính `can-toggle` của PlayHTML để đồng bộ trạng thái bấm like tức thời giữa các phiên duyệt web.
 
 ---
 

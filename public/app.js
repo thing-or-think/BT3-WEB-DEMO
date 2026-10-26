@@ -92,11 +92,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const statFollowers = document.getElementById('stat-followers');
   const userLink = document.getElementById('user-link');
 
-  // Tab 2: Feed Elements
+  // Tab 2: Feed Elements & PlayHTML Community Sync
   const communityFeedList = document.getElementById('community-feed-list');
   const btnOpenQuickShare = document.getElementById('btn-open-quick-share');
   const quickShareBox = document.getElementById('quick-share-box');
   const btnSubmitQuickShare = document.getElementById('btn-submit-quick-share');
+  const btnRefreshFeed = document.getElementById('btn-refresh-feed');
+  const memberCountEl = document.getElementById('member-count');
+  const membersChipList = document.getElementById('members-chip-list');
+
+  // Quản lý danh sách thành viên cộng đồng được đồng bộ qua PlayHTML
+  let communityUsers = getLocalCommunityUsers();
+  let communityPageData = null;
+  let allCommunityGists = [];
+  let selectedUserFilter = 'all';
+
+  function getLocalCommunityUsers() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('playhtml_cached_community_users'));
+      if (Array.isArray(saved) && saved.length > 0) {
+        return [...new Set(['thing-or-think', ...saved])];
+      }
+    } catch (_) {}
+    return ['thing-or-think'];
+  }
+
+  function saveLocalCommunityUsers(users) {
+    try {
+      localStorage.setItem('playhtml_cached_community_users', JSON.stringify(users));
+    } catch (_) {}
+  }
 
   // Tab 3: Search User Elements
   const searchUserForm = document.getElementById('search-user-form');
@@ -154,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       currentUser = await userRes.json();
+      registerUserToCommunity(currentUser.login);
 
       let gists = [];
       try {
@@ -244,6 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       currentUser = await res.json();
+      registerUserToCommunity(currentUser.login);
       setCookie(COOKIE_NAME, token, COOKIE_DAYS);
       showSuccess(`🎉 Xin chào @${currentUser.login}! Cookie phiên đã được lưu 30 ngày.`);
       patInput.value = '';
@@ -368,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 7. QUẢN LÝ DANH SÁCH FEED CỘNG ĐỒNG (NORMAL LIST VIEW)
+  // 7. QUẢN LÝ DANH SÁCH FEED CỘNG ĐỒNG & ĐỒNG BỘ PLAYHTML
   window.toggleQuickShare = function(show) {
     if (show) {
       quickShareBox.classList.remove('hidden');
@@ -381,6 +408,213 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleQuickShare(quickShareBox.classList.contains('hidden'));
   });
 
+  if (btnRefreshFeed) {
+    btnRefreshFeed.addEventListener('click', () => {
+      loadAllCommunityGists();
+      showSuccess('Đã cập nhật danh sách Gist mới nhất!');
+    });
+  }
+
+  // Đăng ký một username mới vào PlayHTML
+  function registerUserToCommunity(username) {
+    if (!username) return;
+    username = username.trim().toLowerCase();
+    if (!communityUsers.includes(username)) {
+      communityUsers = [...new Set([...communityUsers, username])];
+      saveLocalCommunityUsers(communityUsers);
+      renderMemberChips();
+
+      // Đồng bộ qua PlayHTML Realtime
+      if (communityPageData) {
+        try {
+          communityPageData.setData(communityUsers);
+          console.log('[PlayHTML] Đã lưu username mới vào hệ thống:', username);
+        } catch (e) {
+          console.warn('[PlayHTML] Lỗi lưu username:', e);
+        }
+      }
+
+      // Tự động tải thêm Gist của người dùng này vào feed
+      loadAllCommunityGists();
+    }
+  }
+
+  // Khởi tạo kênh dữ liệu PlayHTML cho danh sách thành viên
+  window.initPlayHTMLCommunitySync = function() {
+    if (!window.playhtml || typeof window.playhtml.createPageData !== 'function') {
+      renderMemberChips();
+      loadAllCommunityGists();
+      return;
+    }
+
+    try {
+      communityPageData = window.playhtml.createPageData('community_registered_users', communityUsers);
+
+      const initialList = communityPageData.getData();
+      if (Array.isArray(initialList) && initialList.length > 0) {
+        communityUsers = [...new Set([...communityUsers, ...initialList])];
+        saveLocalCommunityUsers(communityUsers);
+      }
+
+      renderMemberChips();
+      loadAllCommunityGists();
+
+      // Lắng nghe khi có người dùng mới đăng nhập ở bất cứ đâu
+      communityPageData.onUpdate((newList) => {
+        if (Array.isArray(newList) && newList.length > 0) {
+          const beforeCount = communityUsers.length;
+          communityUsers = [...new Set([...communityUsers, ...newList])];
+          saveLocalCommunityUsers(communityUsers);
+          renderMemberChips();
+
+          if (communityUsers.length > beforeCount) {
+            showSuccess('🎉 Thành viên mới vừa tham gia cộng đồng!');
+            loadAllCommunityGists();
+          }
+        }
+      });
+
+      // Nếu đã có user đang đăng nhập, ghi danh ngay
+      if (currentUser && currentUser.login) {
+        registerUserToCommunity(currentUser.login);
+      }
+    } catch (err) {
+      console.warn('[PlayHTML] Lỗi init community sync:', err);
+      renderMemberChips();
+      loadAllCommunityGists();
+    }
+  };
+
+  // Render các nút lọc thành viên (Member Chips)
+  function renderMemberChips() {
+    if (!memberCountEl || !membersChipList) return;
+    memberCountEl.textContent = communityUsers.length;
+
+    const chipsHtml = [
+      `<span class="member-chip ${selectedUserFilter === 'all' ? 'active' : ''}" data-user="all">Tất cả (${communityUsers.length})</span>`,
+      ...communityUsers.map(u => `
+        <span class="member-chip ${selectedUserFilter === u ? 'active' : ''}" data-user="${escapeHtml(u)}">
+          @${escapeHtml(u)}
+        </span>
+      `)
+    ].join('');
+
+    membersChipList.innerHTML = chipsHtml;
+
+    // Gắn sự kiện click để lọc bài
+    membersChipList.querySelectorAll('.member-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        selectedUserFilter = chip.dataset.user;
+        membersChipList.querySelectorAll('.member-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        renderCommunityGistsList();
+      });
+    });
+  }
+
+  // Tải danh sách Gist của TOÀN BỘ các thành viên đã lưu trong PlayHTML
+  async function loadAllCommunityGists() {
+    const token = getCookie(COOKIE_NAME);
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+    communityFeedList.innerHTML = `
+      <div class="loading-state">
+        <span class="status-indicator checking"></span> 
+        Đang tổng hợp Gist từ ${communityUsers.length} thành viên cộng đồng...
+      </div>
+    `;
+
+    try {
+      const promises = communityUsers.map(async (u) => {
+        try {
+          const res = await fetch(`https://api.github.com/users/${u}/gists?per_page=6`, { headers });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (data || []).map(g => ({ ...g, author_login: u }));
+        } catch (_) {
+          return [];
+        }
+      });
+
+      const results = await Promise.all(promises);
+      allCommunityGists = results.flat().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+      renderCommunityGistsList();
+    } catch (err) {
+      console.error(err);
+      communityFeedList.innerHTML = `<li class="loading-item">Lỗi khi tải Gist của các thành viên. Bấm "Làm Mới" để thử lại.</li>`;
+    }
+  }
+
+  // Render danh sách Gist ra giao diện
+  function renderCommunityGistsList() {
+    let filtered = allCommunityGists;
+    if (selectedUserFilter !== 'all') {
+      filtered = allCommunityGists.filter(g => (g.author_login || '').toLowerCase() === selectedUserFilter.toLowerCase());
+    }
+
+    if (filtered.length === 0) {
+      communityFeedList.innerHTML = `
+        <div class="card" style="text-align: center; padding: 2rem;">
+          <p style="color: var(--text-secondary);">Chưa có Gist nào từ ${selectedUserFilter === 'all' ? 'các thành viên' : '@' + selectedUserFilter}.</p>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Bạn có thể là người đầu tiên đăng bài ở tab "Kho Code Của Tôi"!</p>
+        </div>
+      `;
+      return;
+    }
+
+    communityFeedList.innerHTML = filtered.map(g => {
+      const firstFile = Object.values(g.files || {})[0] || {};
+      const filename = firstFile.filename || 'code.txt';
+      const lang = detectLanguage(filename);
+      const langClass = getLangClass(lang);
+      const icon = getLangIcon(lang);
+      const title = g.description || filename;
+      const author = g.author_login || (g.owner ? g.owner.login : 'user');
+      const timeStr = new Date(g.updated_at).toLocaleDateString('vi-VN');
+
+      return `
+        <div class="feed-item">
+          <div class="feed-item-header">
+            <div class="author-info">
+              <span class="author-icon">${icon}</span>
+              <div>
+                <h3 class="feed-item-title">${escapeHtml(title)}</h3>
+                <div class="feed-item-meta">
+                  Đăng bởi <strong>@${escapeHtml(author)}</strong> • 
+                  <span class="badge-lang ${langClass}">${escapeHtml(lang)}</span> • 
+                  <span>${escapeHtml(filename)}</span>
+                </div>
+              </div>
+            </div>
+            <span class="feed-time">${timeStr}</span>
+          </div>
+
+          <p class="feed-item-desc">${escapeHtml(g.description ? `Mô tả: ${g.description}` : `Bài tập ${filename} được lưu từ GitHub Gist`)}</p>
+
+          <div class="feed-item-actions">
+            <div class="action-left">
+              <button can-toggle id="like-gist-${g.id}" class="play-reaction-btn">❤️ <span>Thích</span></button>
+              <button can-toggle id="star-gist-${g.id}" class="play-reaction-btn">⭐ <span>Hữu ích</span></button>
+            </div>
+            <div class="action-right">
+              <button class="btn btn-outline btn-xs" onclick="fetchAndOpenGist('${g.id}')">👁️ Xem Toàn Bộ</button>
+              <button class="btn btn-secondary btn-xs" onclick="copySnippetLink('${g.html_url}')">🔗 Copy Link</button>
+              <button class="btn btn-primary btn-xs" onclick="forkGist('${g.id}')">🍴 Fork</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Kích hoạt lại PlayHTML Realtime cho các nút like vừa render
+    if (window.playhtml && typeof window.playhtml.init === 'function') {
+      try {
+        window.playhtml.init();
+      } catch (_) {}
+    }
+  }
+
   btnSubmitQuickShare.addEventListener('click', () => {
     const title = document.getElementById('quick-title').value.trim();
     const lang = document.getElementById('quick-lang').value;
@@ -391,12 +625,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    addSnippetToCommunityFeed({
+    addCustomLocalSnippet({
       title,
       author: currentUser ? currentUser.login : 'Thành viên',
       desc: `Chia sẻ đoạn code ${lang} hữu ích cho cộng đồng.`,
       code,
-      gistId: '',
       lang
     });
 
@@ -406,14 +639,12 @@ document.addEventListener('DOMContentLoaded', () => {
     showSuccess('Đã đăng thành công lên danh sách cộng đồng!');
   });
 
-  function addSnippetToCommunityFeed({ title, author, desc, code, gistId, lang }) {
+  function addCustomLocalSnippet({ title, author, desc, code, lang }) {
     const item = document.createElement('div');
     item.className = 'feed-item';
-
     const langClass = getLangClass(lang);
     const icon = getLangIcon(lang);
-
-    const uniqueId = gistId || 'snip-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const uniqueId = 'snip-' + Date.now();
 
     item.innerHTML = `
       <div class="feed-item-header">
@@ -428,57 +659,23 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <span class="feed-time">Vừa đăng</span>
       </div>
-
       <p class="feed-item-desc">${escapeHtml(desc)}</p>
       <pre class="snippet-preview">${escapeHtml(code.slice(0, 220))}</pre>
-
       <div class="feed-item-actions">
         <div class="action-left">
           <button can-toggle id="like-${uniqueId}" class="play-reaction-btn">❤️ <span>Thích</span></button>
-          <button can-toggle id="star-${uniqueId}" class="play-reaction-btn">⭐ <span>Đánh dấu</span></button>
+          <button can-toggle id="star-${uniqueId}" class="play-reaction-btn">⭐ <span>Hữu ích</span></button>
         </div>
         <div class="action-right">
-          <button class="btn btn-outline btn-xs" onclick="openCodePreview('${escapeHtml(title)}', ${JSON.stringify(code)}, '${gistId || ''}')">👁️ Xem Toàn Bộ</button>
+          <button class="btn btn-outline btn-xs" onclick="openCodePreview('${escapeHtml(title)}', ${JSON.stringify(code)}, '')">👁️ Xem Toàn Bộ</button>
           <button class="btn btn-secondary btn-xs" onclick="copySnippetCode(${JSON.stringify(code)})">📋 Sao Chép</button>
-          ${gistId ? `<button class="btn btn-primary btn-xs" onclick="forkGist('${gistId}')">🍴 Fork</button>` : ''}
         </div>
       </div>
     `;
 
-    // Chèn lên đầu danh sách feed
     communityFeedList.prepend(item);
-
-    // Kích hoạt lại PlayHTML để gắn can-toggle cho nút Like
-    if (window.playhtml && typeof window.playhtml.init === 'function') {
-      try {
-        window.playhtml.init();
-      } catch (_) {}
-    }
+    if (window.playhtml?.init) window.playhtml.init();
   }
-
-  window.postGistToCommunityFeed = async function(title, gistId, filename) {
-    try {
-      const res = await fetch(`https://api.github.com/gists/${gistId}`);
-      const data = await res.json();
-      const firstFile = Object.values(data.files || {})[0];
-      const code = firstFile ? firstFile.content : '// Trống';
-      const lang = detectLanguage(filename);
-
-      addSnippetToCommunityFeed({
-        title,
-        author: currentUser ? currentUser.login : 'user',
-        desc: `Bài tập từ Gist cá nhân (${filename})`,
-        code,
-        gistId,
-        lang
-      });
-
-      showSuccess(`Đã đăng bài "${title}" lên Danh sách Cộng đồng!`);
-      document.querySelector('[data-tab="tab-feed"]').click();
-    } catch (err) {
-      showError('Không thể tải bài tập để đăng lên Feed.');
-    }
-  };
 
   // 8. TÌM KIẾM GIST CỦA NGƯỜI KHÁC (KỂ CẢ KHI OFFLINE)
   searchUserForm.addEventListener('submit', async (e) => {
@@ -646,6 +843,12 @@ window.copySnippetCode = function(code) {
   if (!code) return;
   navigator.clipboard.writeText(code);
   window.showSuccess('Đã sao chép đoạn code vào bộ nhớ tạm!');
+};
+
+window.copySnippetLink = function(url) {
+  if (!url) return;
+  navigator.clipboard.writeText(url);
+  window.showSuccess('Đã sao chép link Gist vào bộ nhớ tạm!');
 };
 
 window.fetchAndOpenGist = async function(gistId) {
