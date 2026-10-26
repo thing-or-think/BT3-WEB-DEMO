@@ -139,6 +139,26 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAndOpenGist(gistQuery);
   }
 
+  // Khởi tạo ngay lập tức danh sách thành viên và feed từ local state
+  renderMemberChips();
+  loadAllCommunityGists();
+
+  // Khởi tạo PlayHTML sync nếu đã sẵn sàng, hoặc đợi playhtml engine load xong
+  if (window.playhtml && typeof window.playhtml.createPageData === 'function') {
+    window.initPlayHTMLCommunitySync();
+  } else {
+    let playAttempts = 0;
+    const playTimer = setInterval(() => {
+      playAttempts++;
+      if (window.playhtml && typeof window.playhtml.createPageData === 'function') {
+        clearInterval(playTimer);
+        window.initPlayHTMLCommunitySync();
+      } else if (playAttempts > 40) {
+        clearInterval(playTimer);
+      }
+    }, 100);
+  }
+
   // 2. Kiểm tra Cookie đăng nhập phiên 30 ngày
   checkAuthSession();
 
@@ -415,28 +435,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Đăng ký một username mới vào PlayHTML
+  // Đăng ký một username mới vào PlayHTML & Local State
   function registerUserToCommunity(username) {
     if (!username) return;
     username = username.trim().toLowerCase();
+
     if (!communityUsers.includes(username)) {
       communityUsers = [...new Set([...communityUsers, username])];
       saveLocalCommunityUsers(communityUsers);
-      renderMemberChips();
-
-      // Đồng bộ qua PlayHTML Realtime
-      if (communityPageData) {
-        try {
-          communityPageData.setData(communityUsers);
-          console.log('[PlayHTML] Đã lưu username mới vào hệ thống:', username);
-        } catch (e) {
-          console.warn('[PlayHTML] Lỗi lưu username:', e);
-        }
-      }
-
-      // Tự động tải thêm Gist của người dùng này vào feed
-      loadAllCommunityGists();
     }
+
+    renderMemberChips();
+
+    // Đồng bộ ngay lập tức qua PlayHTML nếu đã kết nối
+    if (communityPageData) {
+      try {
+        const remote = communityPageData.getData();
+        const remoteList = Array.isArray(remote) ? remote : [];
+        const merged = [...new Set([...remoteList, ...communityUsers, username])];
+        communityPageData.setData(merged);
+        console.log('✅ [PlayHTML] Đã đồng bộ username lên server:', username, merged);
+      } catch (e) {
+        console.warn('⚠️ [PlayHTML] Lỗi setData:', e);
+      }
+    }
+
+    loadAllCommunityGists();
   }
 
   // Khởi tạo kênh dữ liệu PlayHTML cho danh sách thành viên
@@ -448,19 +472,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      communityPageData = window.playhtml.createPageData('community_registered_users', communityUsers);
+      console.log('🔄 Đang kích hoạt PlayHTML Community Channel...');
+      communityPageData = window.playhtml.createPageData('community_registered_users_v2', communityUsers);
 
-      const initialList = communityPageData.getData();
-      if (Array.isArray(initialList) && initialList.length > 0) {
-        communityUsers = [...new Set([...communityUsers, ...initialList])];
-        saveLocalCommunityUsers(communityUsers);
+      // Đọc và hòa trộn dữ liệu 2 chiều (Local + Server)
+      const remoteList = communityPageData.getData();
+      if (Array.isArray(remoteList) && remoteList.length > 0) {
+        communityUsers = [...new Set([...communityUsers, ...remoteList])];
       }
+
+      // Đảm bảo user hiện tại có mặt trong danh sách
+      if (currentUser && currentUser.login) {
+        const me = currentUser.login.trim().toLowerCase();
+        if (!communityUsers.includes(me)) communityUsers.push(me);
+      }
+
+      saveLocalCommunityUsers(communityUsers);
+      communityPageData.setData(communityUsers);
 
       renderMemberChips();
       loadAllCommunityGists();
 
-      // Lắng nghe khi có người dùng mới đăng nhập ở bất cứ đâu
+      // Lắng nghe realtime khi có bất kỳ ai ở bất kỳ cửa sổ/máy tính nào đăng nhập
       communityPageData.onUpdate((newList) => {
+        console.log('⚡ [PlayHTML] Nhận danh sách thành viên mới qua WebSocket:', newList);
         if (Array.isArray(newList) && newList.length > 0) {
           const beforeCount = communityUsers.length;
           communityUsers = [...new Set([...communityUsers, ...newList])];
@@ -468,16 +503,11 @@ document.addEventListener('DOMContentLoaded', () => {
           renderMemberChips();
 
           if (communityUsers.length > beforeCount) {
-            showSuccess('🎉 Thành viên mới vừa tham gia cộng đồng!');
+            showSuccess(`🎉 Thành viên mới (@${newList[newList.length - 1]}) vừa tham gia!`);
             loadAllCommunityGists();
           }
         }
       });
-
-      // Nếu đã có user đang đăng nhập, ghi danh ngay
-      if (currentUser && currentUser.login) {
-        registerUserToCommunity(currentUser.login);
-      }
     } catch (err) {
       console.warn('[PlayHTML] Lỗi init community sync:', err);
       renderMemberChips();

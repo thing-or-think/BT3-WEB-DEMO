@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Git-as-a-DB + PlayHTML Realtime List Demo</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2.0">
   <link rel="stylesheet" href="https://unpkg.com/playhtml@2.15.0/dist/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -409,16 +409,16 @@ console.log(original.details.age); // 25 (Không bị thay đổi!)</pre>
     </div>
   </div>
 
-  <!-- Script chính của ứng dụng -->
-  <script src="app.js"></script>
+  <!-- Script chính của ứng dụng (Cache-busting v2.0) -->
+  <script src="app.js?v=2.0"></script>
 
-  <!-- Khởi tạo PlayHTML Realtime Engine -->
+  <!-- Khởi tạo PlayHTML Realtime Engine với Room cố định -->
   <script type="module">
     import { playhtml } from 'https://unpkg.com/playhtml@2.15.0/dist/playhtml.es.js';
     window.playhtml = playhtml;
     try {
-      playhtml.init();
-      console.log('✅ PlayHTML Engine đã khởi tạo thành công!');
+      playhtml.init({ room: 'bt3-web-demo-community-v2' });
+      console.log('✅ PlayHTML Engine đã khởi tạo thành công với room: bt3-web-demo-community-v2');
       if (typeof window.initPlayHTMLCommunitySync === 'function') {
         window.initPlayHTMLCommunitySync();
       }
