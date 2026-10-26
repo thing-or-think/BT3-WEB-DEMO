@@ -1,19 +1,18 @@
-// Helper quản lý Cookie (Thời hạn 30 ngày)
+// =========================================================================
+// QUẢN LÝ COOKIE PHIÊN (LƯU TRỮ TRÌNH DUYỆT 30 NGÀY)
+// =========================================================================
 const COOKIE_NAME = 'gh_token';
 const COOKIE_DAYS = 30;
 
 function setCookie(name, value, days) {
   const maxAge = days * 24 * 60 * 60;
-  // Lưu cookie trình duyệt
   document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/; SameSite=Lax`;
-  // Đồng bộ thêm vào localStorage để đảm bảo tương thích mọi môi trường (kể cả sub-path GitHub Pages)
   try {
     localStorage.setItem(name, value);
   } catch (_) {}
 }
 
 function getCookie(name) {
-  // 1. Thử đọc từ document.cookie
   const nameEQ = name + '=';
   const ca = document.cookie.split(';');
   for (let i = 0; i < ca.length; i++) {
@@ -22,7 +21,6 @@ function getCookie(name) {
       return decodeURIComponent(c.substring(nameEQ.length));
     }
   }
-  // 2. Fallback sang localStorage nếu cookie bị chặn bởi chính sách browser
   try {
     return localStorage.getItem(name);
   } catch (_) {
@@ -37,47 +35,53 @@ function deleteCookie(name) {
   } catch (_) {}
 }
 
-// Quản lý giao diện và xử lý logic
+// Global modal state
+let currentModalCode = '';
+let currentModalGistId = '';
+
+// =========================================================================
+// KHỞI CHẠY ỨNG DỤNG
+// =========================================================================
 document.addEventListener('DOMContentLoaded', () => {
-  // Elements
+  // Navigation Tabs
+  const navTabs = document.querySelectorAll('.nav-tab');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  navTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetId = tab.dataset.tab;
+      navTabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(c => c.classList.remove('active'));
+
+      tab.classList.add('active');
+      const targetContent = document.getElementById(targetId);
+      if (targetContent) targetContent.classList.add('active');
+    });
+  });
+
+  // UI Elements
   const headerStatus = document.getElementById('header-user-status');
   const loginView = document.getElementById('login-view');
   const dashboardView = document.getElementById('dashboard-view');
   const errorBanner = document.getElementById('error-banner');
   const successBanner = document.getElementById('success-banner');
 
-  // Form & buttons
+  // Form Elements
   const patForm = document.getElementById('pat-form');
   const patInput = document.getElementById('pat-input');
   const btnSavePat = document.getElementById('btn-save-pat');
   const btnLogout = document.getElementById('btn-logout');
   const btnReload = document.getElementById('btn-reload');
+  const btnOAuthLogin = document.getElementById('btn-oauth-login');
+
+  // Gist Form
   const saveSnippetForm = document.getElementById('save-snippet-form');
   const btnSaveCode = document.getElementById('btn-save-code');
-  const btnOAuthLogin = document.getElementById('btn-oauth-login');
+  const btnSaveAndPin = document.getElementById('btn-save-and-pin');
   const saveResult = document.getElementById('save-result');
   const gistsList = document.getElementById('gists-list');
 
-  // Xử lý nút OAuth Login
-  if (btnOAuthLogin) {
-    btnOAuthLogin.addEventListener('click', () => {
-      // Kiểm tra nếu đang chạy trên GitHub Pages tĩnh (domain github.io)
-      if (window.location.hostname.endsWith('github.io')) {
-        showError('💡 GitHub Pages là web tĩnh (không có backend Node.js để đổi mã OAuth). Vui lòng dùng [Cách 2: Nhập Token PAT] bên phải để đăng nhập & lưu Cookie 30 ngày ngay lập tức!');
-        patInput.focus();
-        patInput.style.borderColor = '#58a6ff';
-        patInput.style.boxShadow = '0 0 10px rgba(56, 139, 253, 0.5)';
-        setTimeout(() => {
-          patInput.style.boxShadow = '';
-        }, 2500);
-        return;
-      }
-      // Nếu đang chạy trên server Node.js localhost
-      window.location.href = '/api/auth/github';
-    });
-  }
-
-  // User Profile elements
+  // User Profile
   const userAvatar = document.getElementById('user-avatar');
   const userName = document.getElementById('user-name');
   const userLogin = document.getElementById('user-login');
@@ -87,30 +91,44 @@ document.addEventListener('DOMContentLoaded', () => {
   const statFollowers = document.getElementById('stat-followers');
   const userLink = document.getElementById('user-link');
 
-  // 1. Kiểm tra tham số lỗi trên URL (nếu có từ OAuth callback)
+  // PlayHTML Board Elements
+  const playCanvas = document.getElementById('play-canvas');
+  const btnAddQuickNote = document.getElementById('btn-add-quick-note');
+
+  // Tab 3: Search User Elements
+  const searchUserForm = document.getElementById('search-user-form');
+  const targetUsernameInput = document.getElementById('target-username-input');
+  const btnSearchUser = document.getElementById('btn-search-user');
+  const searchLoading = document.getElementById('search-loading');
+  const searchResultsWrapper = document.getElementById('search-results-wrapper');
+  const targetUserHeader = document.getElementById('target-user-header');
+  const targetGistsList = document.getElementById('target-gists-list');
+
+  // Current logged in user object
+  let currentUser = null;
+
+  // 1. Kiểm tra tham số Deep-Link (Ví dụ: ?gist=ID)
   const urlParams = new URLSearchParams(window.location.search);
-  const errorParam = urlParams.get('error');
-  if (errorParam) {
-    showError(`Lỗi xác thực: ${decodeURIComponent(errorParam)}`);
-    window.history.replaceState({}, document.title, window.location.pathname);
+  const gistQuery = urlParams.get('gist');
+  if (gistQuery) {
+    fetchAndOpenGist(gistQuery);
   }
 
-  // 2. BƯỚC QUAN TRỌNG: Kiểm tra Cookie hiện có để tự động đăng nhập
+  // 2. Kiểm tra Cookie đăng nhập phiên 30 ngày
   checkAuthSession();
 
   async function checkAuthSession() {
     headerStatus.innerHTML = `<span class="status-indicator checking"></span> Đang kiểm tra Cookie phiên...`;
-
-    // Lấy token từ Cookie trình duyệt
     const token = getCookie(COOKIE_NAME);
 
     if (!token) {
-      // Thử gọi /api/me (nếu đang chạy trên server Node.js)
+      // Fallback kiểm tra server nếu chạy localhost
       try {
         const res = await fetch('/api/me');
         if (res.ok) {
           const data = await res.json();
           if (data.authenticated && data.user) {
+            currentUser = data.user;
             return renderAuthenticatedUI(data.user, data.gists);
           }
         }
@@ -120,7 +138,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Xác thực token trực tiếp với GitHub API (chạy 100% Client-side trên GitHub Pages)
     try {
       const userRes = await fetch('https://api.github.com/user', {
         headers: {
@@ -130,38 +147,32 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (!userRes.ok) {
-        // Token trong cookie không còn hợp lệ -> Xóa cookie
         deleteCookie(COOKIE_NAME);
         renderUnauthenticatedUI();
-        showError('Phiên làm việc trong Cookie đã hết hạn hoặc bị thu hồi trên GitHub.');
+        showError('Phiên đăng nhập trong Cookie đã hết hạn trên GitHub.');
         return;
       }
 
-      const userData = await userRes.json();
+      currentUser = await userRes.json();
 
-      // Lấy danh sách Gists mới nhất của user
       let gists = [];
       try {
-        const gistsRes = await fetch('https://api.github.com/gists?per_page=5', {
+        const gistsRes = await fetch('https://api.github.com/gists?per_page=6', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/vnd.github+json'
           }
         });
-        if (gistsRes.ok) {
-          gists = await gistsRes.json();
-        }
+        if (gistsRes.ok) gists = await gistsRes.json();
       } catch (_) {}
 
-      renderAuthenticatedUI(userData, gists);
+      renderAuthenticatedUI(currentUser, gists);
     } catch (err) {
-      console.error('Lỗi kết nối GitHub:', err);
-      showError('Không thể kết nối đến GitHub API. Vui lòng kiểm tra mạng.');
+      console.error(err);
       renderUnauthenticatedUI();
     }
   }
 
-  // 3. Hiển thị trạng thái đã đăng nhập
   function renderAuthenticatedUI(user, gists = []) {
     headerStatus.innerHTML = `<span class="status-indicator online"></span> Đã kết nối: <strong>@${user.login}</strong> (Cookie 30 ngày)`;
     loginView.classList.add('hidden');
@@ -179,17 +190,15 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGists(gists);
   }
 
-  // 4. Hiển thị trạng thái chưa đăng nhập
   function renderUnauthenticatedUI() {
-    headerStatus.innerHTML = `<span class="status-indicator offline"></span> Chưa đăng nhập`;
+    headerStatus.innerHTML = `<span class="status-indicator offline"></span> Khách (Chưa đăng nhập)`;
     loginView.classList.remove('hidden');
     dashboardView.classList.add('hidden');
   }
 
-  // 5. Render danh sách Gists
   function renderGists(gists) {
     if (!gists || gists.length === 0) {
-      gistsList.innerHTML = `<li class="loading-item">Chưa có Gist nào. Hãy thử lưu đoạn code đầu tiên ở trên!</li>`;
+      gistsList.innerHTML = `<li class="loading-item">Chưa có Gist nào. Soạn code bên trên để tạo bài đầu tiên!</li>`;
       return;
     }
 
@@ -199,27 +208,29 @@ document.addEventListener('DOMContentLoaded', () => {
       return `
         <li class="gist-item">
           <div>
-            <a href="${g.html_url}" target="_blank" rel="noopener">${escapeHtml(desc)}</a>
-            <div class="gist-files">📄 ${escapeHtml(fileNames)}</div>
+            <a href="javascript:void(0)" onclick="fetchAndOpenGist('${g.id}')"><strong>${escapeHtml(desc)}</strong></a>
+            <div class="gist-files">📄 ${escapeHtml(fileNames)} • ${new Date(g.created_at).toLocaleDateString('vi-VN')}</div>
           </div>
-          <a href="${g.html_url}" target="_blank" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">Mở ↗</a>
+          <div style="display: flex; gap: 0.4rem;">
+            <button class="btn btn-outline btn-xs" onclick="fetchAndOpenGist('${g.id}')">Xem</button>
+            <button class="btn btn-secondary btn-xs" onclick="pinExistingGistToBoard('${escapeHtml(desc)}', '${g.id}', '${escapeHtml(fileNames)}')">📌 Ghim PlayHTML</button>
+          </div>
         </li>
       `;
     }).join('');
   }
 
-  // 6. Xử lý Đăng nhập nhanh bằng Personal Access Token (PAT)
+  // 3. Xử lý Đăng nhập PAT
   patForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const token = patInput.value.trim();
     if (!token) return;
 
     btnSavePat.disabled = true;
-    btnSavePat.textContent = 'Đang xác thực & Ghi Cookie...';
+    btnSavePat.textContent = 'Đang xác thực & Lưu Cookie...';
     hideBanners();
 
     try {
-      // Kiểm tra token với GitHub API
       const res = await fetch('https://api.github.com/user', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -228,112 +239,284 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (!res.ok) {
-        showError('Token không hợp lệ hoặc không có quyền truy cập GitHub!');
+        showError('Token GitHub không hợp lệ hoặc đã bị thu hồi!');
         return;
       }
 
-      const user = await res.json();
-
-      // LƯU VÀO COOKIE VỚI HẠN DÙNG 30 NGÀY
+      currentUser = await res.json();
       setCookie(COOKIE_NAME, token, COOKIE_DAYS);
-
-      showSuccess(`🎉 Xin chào @${user.login}! Đã lưu Cookie phiên làm việc trong 30 ngày.`);
+      showSuccess(`🎉 Xin chào @${currentUser.login}! Cookie phiên đã được lưu 30 ngày.`);
       patInput.value = '';
-
-      // Tải lại phiên để hiển thị Dashboard
       await checkAuthSession();
     } catch (err) {
       console.error(err);
       showError('Lỗi kết nối khi gửi token.');
     } finally {
       btnSavePat.disabled = false;
-      btnSavePat.textContent = 'Xác nhận & Lưu Cookie';
+      btnSavePat.textContent = 'Xác nhận & Lưu Cookie 30 Ngày';
     }
   });
 
-  // 7. Thử nghiệm "Test F5 / Tải Lại Trang"
-  btnReload.addEventListener('click', () => {
-    location.reload();
-  });
+  // 4. Xử lý Nút OAuth
+  if (btnOAuthLogin) {
+    btnOAuthLogin.addEventListener('click', () => {
+      if (window.location.hostname.endsWith('github.io')) {
+        showError('💡 GitHub Pages là web tĩnh. Vui lòng dùng [Cách 2: Nhập Token PAT] bên phải để lưu Cookie 30 ngày!');
+        patInput.focus();
+        patInput.style.borderColor = '#58a6ff';
+        return;
+      }
+      window.location.href = '/api/auth/github';
+    });
+  }
 
-  // 8. Đăng xuất: Xóa Cookie
+  // 5. Test F5 & Đăng xuất
+  btnReload.addEventListener('click', () => location.reload());
   btnLogout.addEventListener('click', () => {
-    if (!confirm('Bạn có chắc chắn muốn xóa Cookie và đăng xuất?')) return;
-
+    if (!confirm('Xóa Cookie và đăng xuất?')) return;
     deleteCookie(COOKIE_NAME);
-    // Xóa thêm phía server nếu có
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-
-    showSuccess('Đã xóa Cookie thành công. Bạn đã đăng xuất.');
+    showSuccess('Đã xóa Cookie thành công.');
+    currentUser = null;
     renderUnauthenticatedUI();
   });
 
-  // 9. Thử nghiệm Git as a DB: Lưu Code trực tiếp lên GitHub Gist của User
-  saveSnippetForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
+  // 6. Xử lý Lưu Snippet vào Gist
+  async function performSaveGist() {
     const token = getCookie(COOKIE_NAME);
     if (!token) {
-      showError('Không tìm thấy token trong Cookie. Vui lòng đăng nhập lại!');
-      return;
+      showError('Bạn cần đăng nhập để lưu code lên GitHub!');
+      return null;
     }
 
     const title = document.getElementById('snippet-title').value.trim();
     const filename = document.getElementById('snippet-filename').value.trim();
     const code = document.getElementById('snippet-code').value;
 
+    const res = await fetch('https://api.github.com/gists', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github+json'
+      },
+      body: JSON.stringify({
+        description: title || 'Snippet lưu từ Web Demo',
+        public: true, // Để chế độ public để bạn bè xem được
+        files: { [filename]: { content: code } }
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Lỗi khi lưu Gist!');
+    return { data, title, filename, code };
+  }
+
+  saveSnippetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
     btnSaveCode.disabled = true;
-    btnSaveCode.textContent = '⏳ Đang gọi GitHub API để tạo Gist...';
-    saveResult.classList.add('hidden');
+    btnSaveCode.textContent = '⏳ Đang lưu lên GitHub...';
 
     try {
-      // Gọi trực tiếp GitHub Gist API (hỗ trợ CORS 100% trên GitHub Pages)
-      const res = await fetch('https://api.github.com/gists', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github+json'
-        },
-        body: JSON.stringify({
-          description: title || 'Snippet được lưu từ Web Demo',
-          public: false, // Lưu riêng tư (Private Gist)
-          files: {
-            [filename]: { content: code }
-          }
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        showError(data.message || 'Lỗi khi lưu Gist!');
-        return;
-      }
+      const result = await performSaveGist();
+      if (!result) return;
 
       saveResult.innerHTML = `
-        <div style="color: #3fb950; font-weight: 600; margin-bottom: 0.4rem;">
-          ✅ Code đã được lưu trực tiếp vào GitHub của bạn!
+        <div style="color: #3fb950; font-weight: 600; margin-bottom: 0.3rem;">
+          ✅ Code đã được lưu trực tiếp vào GitHub Gist của bạn!
         </div>
-        <div>
-          Xem trực tiếp trên GitHub: 
-          <a href="${data.html_url}" target="_blank" rel="noopener">${data.html_url} ↗</a>
-        </div>
+        <div>Link xem: <a href="${result.data.html_url}" target="_blank" rel="noopener">${result.data.html_url} ↗</a></div>
       `;
       saveResult.classList.remove('hidden');
-
-      // Tải lại danh sách Gist
-      setTimeout(() => {
-        checkAuthSession();
-      }, 1000);
-
+      setTimeout(checkAuthSession, 1200);
     } catch (err) {
-      console.error(err);
-      showError('Lỗi kết nối khi lưu Gist.');
+      showError(err.message || 'Lỗi khi lưu Gist.');
     } finally {
       btnSaveCode.disabled = false;
-      btnSaveCode.textContent = '💾 Bấm để Lưu Code vào GitHub Gist';
+      btnSaveCode.textContent = '💾 Lưu vào GitHub Gist';
     }
   });
+
+  // Nút: "Lưu & Ghim lên Bảng PlayHTML"
+  btnSaveAndPin.addEventListener('click', async () => {
+    btnSaveAndPin.disabled = true;
+    btnSaveAndPin.textContent = '⏳ Đang lưu & tạo thẻ PlayHTML...';
+
+    try {
+      const result = await performSaveGist();
+      if (!result) return;
+
+      // Tạo thẻ mới trên PlayHTML Canvas
+      addPlayCardToCanvas({
+        title: result.title,
+        author: currentUser ? currentUser.login : 'user',
+        preview: result.code.slice(0, 100),
+        fullCode: result.code,
+        gistId: result.data.id
+      });
+
+      showSuccess('🎉 Đã lưu vào GitHub và ghim thành công lên Bảng PlayHTML Realtime!');
+      // Tự động chuyển sang Tab PlayHTML để xem
+      document.querySelector('[data-tab="tab-playhtml"]').click();
+      setTimeout(checkAuthSession, 1200);
+    } catch (err) {
+      showError(err.message || 'Lỗi khi lưu & ghim bài.');
+    } finally {
+      btnSaveAndPin.disabled = false;
+      btnSaveAndPin.textContent = '📌 Lưu & Ghim lên Bảng PlayHTML';
+    }
+  });
+
+  // 7. PLAYHTML REALTIME CANVAS LOGIC
+  function addPlayCardToCanvas({ title, author, preview, fullCode, gistId }) {
+    const card = document.createElement('div');
+    card.className = 'play-card';
+    card.setAttribute('can-move', ''); // PlayHTML Draggable
+
+    // Tọa độ ngẫu nhiên gần giữa bảng
+    const randX = Math.floor(Math.random() * 200) + 50;
+    const randY = Math.floor(Math.random() * 150) + 50;
+    card.style.transform = `translate(${randX}px, ${randY}px)`;
+
+    card.innerHTML = `
+      <div class="card-pill">Snippet Mới</div>
+      <h4>${escapeHtml(title)}</h4>
+      <p class="card-author">Tác giả: @${escapeHtml(author)}</p>
+      <pre class="snippet-preview">${escapeHtml(preview)}</pre>
+      <div class="play-card-footer">
+        <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
+        <button class="btn btn-outline btn-xs" onclick="openCodePreview('${escapeHtml(title)}', ${JSON.stringify(fullCode)}, '${gistId || ''}')">Xem Code</button>
+      </div>
+    `;
+
+    playCanvas.appendChild(card);
+
+    // Kích hoạt lại PlayHTML để gắn sync vào thẻ mới
+    if (window.playhtml && typeof window.playhtml.init === 'function') {
+      try {
+        window.playhtml.init();
+      } catch (_) {}
+    }
+  }
+
+  // Nút Thêm Thẻ Ghi Chú Nhanh trên PlayHTML
+  btnAddQuickNote.addEventListener('click', () => {
+    const note = document.createElement('div');
+    note.className = 'play-card sticky-card';
+    note.setAttribute('can-move', '');
+    note.setAttribute('can-duplicate', '');
+
+    const randX = Math.floor(Math.random() * 250) + 40;
+    const randY = Math.floor(Math.random() * 180) + 60;
+    note.style.transform = `translate(${randX}px, ${randY}px)`;
+
+    const authorName = currentUser ? currentUser.login : 'Thành viên';
+    note.innerHTML = `
+      <div class="sticky-title">📌 Ghi Chú (@${escapeHtml(authorName)})</div>
+      <p>Kéo thẻ này đi mọi nơi hoặc bấm duplicate để nhân bản!</p>
+      <div class="play-card-footer">
+        <span class="card-badge">can-move</span>
+        <button can-toggle class="play-reaction-btn">👍 <span>Đồng ý</span></button>
+      </div>
+    `;
+
+    playCanvas.appendChild(note);
+    if (window.playhtml?.init) window.playhtml.init();
+    showSuccess('Đã thêm thẻ mới vào bảng Realtime!');
+  });
+
+  // Cho phép ghim một Gist có sẵn từ danh sách cá nhân lên PlayHTML
+  window.pinExistingGistToBoard = async function(title, gistId, filename) {
+    try {
+      const res = await fetch(`https://api.github.com/gists/${gistId}`);
+      const data = await res.json();
+      const firstFile = Object.values(data.files || {})[0];
+      const codeContent = firstFile ? firstFile.content : '// No content';
+
+      addPlayCardToCanvas({
+        title,
+        author: currentUser ? currentUser.login : 'user',
+        preview: codeContent.slice(0, 100),
+        fullCode: codeContent,
+        gistId
+      });
+
+      showSuccess(`Đã ghim "${title}" lên Bảng PlayHTML!`);
+      document.querySelector('[data-tab="tab-playhtml"]').click();
+    } catch (err) {
+      showError('Không thể tải nội dung Gist để ghim.');
+    }
+  };
+
+  // 8. TÌM KIẾM GIST CỦA NGƯỜI KHÁC (KỂ CẢ KHI OFFLINE)
+  searchUserForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const targetUser = targetUsernameInput.value.trim().replace(/^@/, '');
+    if (!targetUser) return;
+
+    btnSearchUser.disabled = true;
+    searchLoading.classList.remove('hidden');
+    searchResultsWrapper.classList.add('hidden');
+
+    try {
+      const token = getCookie(COOKIE_NAME);
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      // 1. Lấy Profile người đó
+      const userRes = await fetch(`https://api.github.com/users/${targetUser}`, { headers });
+      if (!userRes.ok) {
+        throw new Error(`Không tìm thấy người dùng @${targetUser} trên GitHub.`);
+      }
+      const targetData = await userRes.json();
+
+      // 2. Lấy danh sách Gist public của người đó
+      const gistsRes = await fetch(`https://api.github.com/users/${targetUser}/gists?per_page=30`, { headers });
+      const targetGists = gistsRes.ok ? await gistsRes.json() : [];
+
+      renderTargetUserResults(targetData, targetGists);
+      searchResultsWrapper.classList.remove('hidden');
+    } catch (err) {
+      showError(err.message || 'Lỗi khi tìm kiếm.');
+    } finally {
+      searchLoading.classList.add('hidden');
+      btnSearchUser.disabled = false;
+    }
+  });
+
+  function renderTargetUserResults(user, gists) {
+    targetUserHeader.innerHTML = `
+      <img src="${user.avatar_url}" alt="Avatar" class="avatar" style="width: 46px; height: 46px;" />
+      <div style="flex: 1;">
+        <h3 style="font-size: 1rem;">${escapeHtml(user.name || user.login)} (@${escapeHtml(user.login)})</h3>
+        <p style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(user.bio || 'Người dùng GitHub')}</p>
+      </div>
+      <div style="font-size: 0.8rem; text-align: right;">
+        <strong>${gists.length}</strong> Gists công khai
+      </div>
+    `;
+
+    if (!gists || gists.length === 0) {
+      targetGistsList.innerHTML = `<li class="loading-item">Người dùng này chưa có Gist public nào.</li>`;
+      return;
+    }
+
+    targetGistsList.innerHTML = gists.map(g => {
+      const fileNames = Object.keys(g.files || {}).join(', ') || 'snippet';
+      const desc = g.description || fileNames;
+      return `
+        <li class="gist-item">
+          <div>
+            <a href="javascript:void(0)" onclick="fetchAndOpenGist('${g.id}')"><strong>${escapeHtml(desc)}</strong></a>
+            <div class="gist-files">📄 ${escapeHtml(fileNames)} • Cập nhật: ${new Date(g.updated_at).toLocaleDateString('vi-VN')}</div>
+          </div>
+          <div style="display: flex; gap: 0.4rem;">
+            <button class="btn btn-outline btn-xs" onclick="fetchAndOpenGist('${g.id}')">Xem Code</button>
+            <button class="btn btn-primary btn-xs" onclick="forkGist('${g.id}')">🍴 Fork</button>
+          </div>
+        </li>
+      `;
+    }).join('');
+  }
 
   // Helpers
   function showError(msg) {
@@ -354,11 +537,104 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function escapeHtml(str) {
-    return str
+    if (!str) return '';
+    return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  window.showError = showError;
+  window.showSuccess = showSuccess;
 });
+
+// =========================================================================
+// CÁC HÀM XỬ LÝ MODAL XEM & FORK CODE
+// =========================================================================
+window.openCodePreview = function(title, code, gistId = '') {
+  const modal = document.getElementById('code-modal');
+  const titleEl = document.getElementById('modal-code-title');
+  const codeEl = document.getElementById('modal-code-content').querySelector('code');
+  const forkBtn = document.getElementById('btn-fork-code');
+
+  currentModalCode = code || '';
+  currentModalGistId = gistId || '';
+
+  titleEl.textContent = title;
+  codeEl.textContent = code;
+
+  if (gistId) {
+    forkBtn.style.display = 'inline-flex';
+  } else {
+    forkBtn.style.display = 'none';
+  }
+
+  modal.classList.remove('hidden');
+};
+
+window.closeCodeModal = function() {
+  document.getElementById('code-modal').classList.add('hidden');
+};
+
+window.copyModalCode = function() {
+  if (!currentModalCode) return;
+  navigator.clipboard.writeText(currentModalCode);
+  window.showSuccess('Đã sao chép mã nguồn vào bộ nhớ tạm!');
+};
+
+window.fetchAndOpenGist = async function(gistId) {
+  try {
+    const token = getCookie(COOKIE_NAME);
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, { headers });
+    if (!res.ok) throw new Error('Không thể tải Gist.');
+
+    const gist = await res.json();
+    const firstFile = Object.values(gist.files || {})[0];
+    const codeContent = firstFile ? firstFile.content : '// Trống';
+    const title = gist.description || (firstFile ? firstFile.filename : 'Snippet');
+
+    window.openCodePreview(title, codeContent, gist.id);
+  } catch (err) {
+    window.showError('Không thể mở nội dung bài tập.');
+  }
+};
+
+window.forkGist = async function(gistId) {
+  const token = getCookie(COOKIE_NAME);
+  if (!token) {
+    window.showError('Bạn cần đăng nhập để Fork code về tài khoản cá nhân!');
+    return;
+  }
+
+  if (!confirm('Bạn có muốn sao chép (Fork) đoạn code này về tài khoản GitHub của bạn?')) return;
+
+  try {
+    const res = await fetch(`https://api.github.com/gists/${gistId}/forks`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json'
+      }
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Lỗi khi Fork.');
+
+    window.showSuccess(`🎉 Fork thành công! Mã đã được lưu vào tài khoản của bạn: ${data.html_url}`);
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+  } catch (err) {
+    window.showError(err.message || 'Fork thất bại.');
+  }
+};
+
+window.forkCurrentModalCode = function() {
+  if (currentModalGistId) {
+    window.forkGist(currentModalGistId);
+  }
+};
