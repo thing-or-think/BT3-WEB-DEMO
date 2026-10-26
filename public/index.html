@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Git-as-a-DB + PlayHTML Realtime Board Demo</title>
+  <title>Git-as-a-DB + PlayHTML Realtime List Demo</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/playhtml@2.15.0/dist/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,7 +19,7 @@
         </svg>
         <div>
           <h1>Git-as-a-DB + PlayHTML</h1>
-          <p class="subtitle">Lưu trữ trên GitHub Gist • Ghi nhớ Cookie 30 ngày • Tương tác Realtime với PlayHTML</p>
+          <p class="subtitle">Lưu trữ trên GitHub Gist • Ghi nhớ Cookie 30 ngày • Tương tác Realtime</p>
         </div>
       </div>
       <div id="header-user-status" class="header-status">
@@ -36,8 +36,8 @@
       <button class="nav-tab active" data-tab="tab-editor">
         💻 Kho Code Của Tôi (Gist)
       </button>
-      <button class="nav-tab" data-tab="tab-playhtml">
-        🎨 Bảng Tương Tác Realtime (PlayHTML)
+      <button class="nav-tab" data-tab="tab-feed">
+        🌐 Danh Sách Code Cộng Đồng
       </button>
       <button class="nav-tab" data-tab="tab-search">
         🔍 Xem Code Người Khác (@username)
@@ -174,7 +174,7 @@ print(greet("Developer"))
                   💾 Lưu vào GitHub Gist
                 </button>
                 <button type="button" id="btn-save-and-pin" class="btn btn-secondary">
-                  📌 Lưu & Ghim lên Bảng PlayHTML
+                  📌 Lưu & Đăng Lên Danh Sách Cộng Đồng
                 </button>
               </div>
             </form>
@@ -193,67 +193,155 @@ print(greet("Developer"))
     </main>
 
     <!-- ========================================== -->
-    <!-- TAB 2: BẢNG TƯƠNG TÁC PLAYHTML REALTIME   -->
+    <!-- TAB 2: DANH SÁCH CODE CỘNG ĐỒNG (FEED)    -->
     <!-- ========================================== -->
-    <main id="tab-playhtml" class="tab-content">
-      <div class="card playhtml-intro-card">
-        <div class="playhtml-intro-header">
+    <main id="tab-feed" class="tab-content">
+      <div class="card">
+        <div class="feed-header-bar">
           <div>
-            <h2>🎨 Bảng Tương Tác Cộng Đồng (PlayHTML Engine)</h2>
-            <p>Mọi thẻ bên dưới đều có thuộc tính <code>can-move</code> (kéo thả tự do), <code>can-toggle</code> (thả tim) hoặc <code>can-duplicate</code> (nhân bản). <strong>Mọi thao tác của bạn đều được đồng bộ thời gian thực cho tất cả người đang mở trang web này!</strong></p>
+            <h2>🌐 Danh Sách Code Chia Sẻ Cộng Đồng</h2>
+            <p>Hiển thị dạng danh sách chuẩn, hỗ trợ tương tác thả tim thời gian thực (PlayHTML) và xem/fork code của nhau.</p>
           </div>
-          <button id="btn-add-quick-note" class="btn btn-primary">
-            ➕ Thêm Thẻ Code Mới
+          <button id="btn-open-quick-share" class="btn btn-primary">
+            ➕ Đăng Bài Nhanh
           </button>
+        </div>
+
+        <!-- Form Đăng Bài Nhanh (Thu gọn) -->
+        <div id="quick-share-box" class="quick-share-box hidden">
+          <h4>Đăng một đoạn code lên danh sách cộng đồng:</h4>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <input type="text" id="quick-title" placeholder="Tiêu đề đoạn code..." />
+            </div>
+            <div class="form-group" style="width: 140px;">
+              <select id="quick-lang" class="form-select">
+                <option value="Python">Python</option>
+                <option value="JavaScript">JavaScript</option>
+                <option value="C++">C++</option>
+                <option value="Java">Java</option>
+                <option value="HTML/CSS">HTML/CSS</option>
+                <option value="Khác">Khác</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <textarea id="quick-code" rows="4" placeholder="Dán nội dung code vào đây..."></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary btn-xs" onclick="toggleQuickShare(false)">Hủy</button>
+            <button type="button" class="btn btn-primary btn-xs" id="btn-submit-quick-share">Đăng Lên Danh Sách</button>
+          </div>
         </div>
       </div>
 
-      <!-- Khung Canvas tương tác PlayHTML -->
-      <div class="playhtml-board-wrapper">
-        <div id="play-canvas" class="play-canvas">
-          <!-- Thẻ Hướng Dẫn Kéo Thả Mẫu 1 -->
-          <div class="play-card welcome-card" can-move style="transform: translate(20px, 20px);">
-            <div class="card-pill">PlayHTML Demo</div>
-            <h4>👋 Chào mừng đến với Bảng Realtime!</h4>
-            <p>Thử bấm giữ và kéo thẻ này đi chỗ khác. Bất kỳ ai mở trang này cùng lúc sẽ thấy thẻ di chuyển trực tiếp!</p>
-            <div class="play-card-footer">
-              <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
-              <span class="drag-hint">🖐️ Kéo thả tôi</span>
+      <!-- Danh Sách Snippets Cộng Đồng (Vertical List View) -->
+      <div id="community-feed-list" class="feed-list">
+        <!-- Item 1 -->
+        <div class="feed-item">
+          <div class="feed-item-header">
+            <div class="author-info">
+              <span class="author-icon">🐍</span>
+              <div>
+                <h3 class="feed-item-title">Thuật toán Binary Search (Tìm Kiếm Nhị Phân)</h3>
+                <div class="feed-item-meta">
+                  Đăng bởi <strong>@thing-or-think</strong> • <span class="badge-lang lang-python">Python</span>
+                </div>
+              </div>
             </div>
+            <span class="feed-time">Vừa xong</span>
           </div>
 
-          <!-- Thẻ Code Chia Sẻ Mẫu 2 -->
-          <div class="play-card" can-move style="transform: translate(360px, 20px);">
-            <div class="card-pill pill-python">Python</div>
-            <h4>Thuật toán Binary Search</h4>
-            <p class="card-author">Tác giả: @thing-or-think</p>
-            <pre class="snippet-preview">def binary_search(arr, x):
+          <p class="feed-item-desc">Thuật toán tìm kiếm nhị phân trên mảng đã sắp xếp với độ phức tạp thời gian cực nhanh O(log n).</p>
+          <pre class="snippet-preview">def binary_search(arr, x):
     low, high = 0, len(arr) - 1
-    while low <= high: ...</pre>
-            <div class="play-card-footer">
+    while low <= high:
+        mid = (low + high) // 2
+        if arr[mid] == x: return mid
+        elif arr[mid] < x: low = mid + 1
+        else: high = mid - 1
+    return -1</pre>
+
+          <div class="feed-item-actions">
+            <div class="action-left">
+              <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
               <button can-toggle class="play-reaction-btn">⭐ <span>Hữu ích</span></button>
-              <button class="btn btn-outline btn-xs" onclick="openCodePreview('Binary Search (Python)', 'def binary_search(arr, x):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == x: return mid\n        elif arr[mid] < x: low = mid + 1\n        else: high = mid - 1\n    return -1')">Xem Code</button>
+            </div>
+            <div class="action-right">
+              <button class="btn btn-outline btn-xs" onclick="openCodePreview('Binary Search (Python)', 'def binary_search(arr, x):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == x: return mid\n        elif arr[mid] < x: low = mid + 1\n        else: high = mid - 1\n    return -1')">👁️ Xem Toàn Bộ</button>
+              <button class="btn btn-secondary btn-xs" onclick="copySnippetCode('def binary_search(arr, x):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == x: return mid\n        elif arr[mid] < x: low = mid + 1\n        else: high = mid - 1\n    return -1')">📋 Sao Chép</button>
             </div>
           </div>
+        </div>
 
-          <!-- Thẻ Code Chia Sẻ Mẫu 3 -->
-          <div class="play-card" can-move style="transform: translate(20px, 240px);">
-            <div class="card-pill pill-js">JavaScript</div>
-            <h4>Deep Clone Object Chuẩn 2026</h4>
-            <p class="card-author">Tác giả: @community</p>
-            <pre class="snippet-preview">const copy = structuredClone(obj);</pre>
-            <div class="play-card-footer">
+        <!-- Item 2 -->
+        <div class="feed-item">
+          <div class="feed-item-header">
+            <div class="author-info">
+              <span class="author-icon">⚡</span>
+              <div>
+                <h3 class="feed-item-title">Deep Clone Object Không Cần Lodash</h3>
+                <div class="feed-item-meta">
+                  Đăng bởi <strong>@community</strong> • <span class="badge-lang lang-js">JavaScript</span>
+                </div>
+              </div>
+            </div>
+            <span class="feed-time">Hôm nay</span>
+          </div>
+
+          <p class="feed-item-desc">Cách sao chép sâu (deep copy) đối tượng JavaScript chuẩn hiện đại bằng native API structuredClone.</p>
+          <pre class="snippet-preview">// Phương thức native có sẵn từ Node 17+ và trình duyệt hiện đại:
+const original = { name: "Alice", details: { age: 25, skills: ["JS", "Git"] } };
+const cloned = structuredClone(original);
+cloned.details.age = 26;
+console.log(original.details.age); // 25 (Không bị thay đổi!)</pre>
+
+          <div class="feed-item-actions">
+            <div class="action-left">
               <button can-toggle class="play-reaction-btn">🔥 <span>10 điểm</span></button>
-              <button class="btn btn-outline btn-xs" onclick="openCodePreview('Deep Clone (JS)', '// Cách deep clone hiện đại nhất trong JS không cần lodash:\nconst original = { a: 1, b: { c: 2 } };\nconst copy = structuredClone(original);\nconsole.log(copy);')">Xem Code</button>
+              <button can-toggle class="play-reaction-btn">💡 <span>Hay</span></button>
+            </div>
+            <div class="action-right">
+              <button class="btn btn-outline btn-xs" onclick="openCodePreview('Deep Clone (JS)', 'const original = { name: &quot;Alice&quot;, details: { age: 25, skills: [&quot;JS&quot;, &quot;Git&quot;] } };\nconst cloned = structuredClone(original);\ncloned.details.age = 26;\nconsole.log(original.details.age);')">👁️ Xem Toàn Bộ</button>
+              <button class="btn btn-secondary btn-xs" onclick="copySnippetCode('const original = { name: &quot;Alice&quot;, details: { age: 25 } };\nconst cloned = structuredClone(original);')">📋 Sao Chép</button>
             </div>
           </div>
+        </div>
 
-          <!-- Thẻ Ghi Chú Có Thể Nhân Bản (can-duplicate) -->
-          <div class="play-card sticky-card" can-move can-duplicate style="transform: translate(360px, 240px);">
-            <div class="sticky-title">📌 Sticky Note Nhóm</div>
-            <p>Bấm nút <strong>"+" (duplicate)</strong> ở góc thẻ này để tạo thêm ghi chú mới và kéo sang vị trí bạn muốn!</p>
-            <div class="play-card-footer">
-              <span class="card-badge">can-duplicate</span>
+        <!-- Item 3 -->
+        <div class="feed-item">
+          <div class="feed-item-header">
+            <div class="author-info">
+              <span class="author-icon">🚀</span>
+              <div>
+                <h3 class="feed-item-title">Thuật toán Kiểm Tra Số Nguyên Tố Tối Ưu</h3>
+                <div class="feed-item-meta">
+                  Đăng bởi <strong>@developer</strong> • <span class="badge-lang lang-cpp">C++</span>
+                </div>
+              </div>
+            </div>
+            <span class="feed-time">Hôm qua</span>
+          </div>
+
+          <p class="feed-item-desc">Kiểm tra số nguyên tố bằng cách duyệt bước nhảy 6 (dạng 6k ± 1), độ phức tạp O(căn n / 3).</p>
+          <pre class="snippet-preview">bool isPrime(int n) {
+    if (n <= 1) return false;
+    if (n <= 3) return true;
+    if (n % 2 == 0 || n % 3 == 0) return false;
+    for (int i = 5; i * i <= n; i += 6) {
+        if (n % i == 0 || n % (i + 2) == 0) return false;
+    }
+    return true;
+}</pre>
+
+          <div class="feed-item-actions">
+            <div class="action-left">
+              <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
+              <button can-toggle class="play-reaction-btn">⭐ <span>Đánh dấu</span></button>
+            </div>
+            <div class="action-right">
+              <button class="btn btn-outline btn-xs" onclick="openCodePreview('Kiểm tra số nguyên tố (C++)', 'bool isPrime(int n) {\n    if (n <= 1) return false;\n    if (n <= 3) return true;\n    if (n % 2 == 0 || n % 3 == 0) return false;\n    for (int i = 5; i * i <= n; i += 6) {\n        if (n % i == 0 || n % (i + 2) == 0) return false;\n    }\n    return true;\n}')">👁️ Xem Toàn Bộ</button>
+              <button class="btn btn-secondary btn-xs" onclick="copySnippetCode('bool isPrime(int n) {\n    if (n <= 1) return false;\n    if (n <= 3) return true;\n    if (n % 2 == 0 || n % 3 == 0) return false;\n    for (int i = 5; i * i <= n; i += 6) {\n        if (n % i == 0 || n % (i + 2) == 0) return false;\n    }\n    return true;\n}')">📋 Sao Chép</button>
             </div>
           </div>
         </div>

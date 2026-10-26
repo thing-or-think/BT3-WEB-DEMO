@@ -38,6 +38,7 @@ function deleteCookie(name) {
 // Global modal state
 let currentModalCode = '';
 let currentModalGistId = '';
+let currentUser = null;
 
 // =========================================================================
 // KHỞI CHẠY ỨNG DỤNG
@@ -91,9 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const statFollowers = document.getElementById('stat-followers');
   const userLink = document.getElementById('user-link');
 
-  // PlayHTML Board Elements
-  const playCanvas = document.getElementById('play-canvas');
-  const btnAddQuickNote = document.getElementById('btn-add-quick-note');
+  // Tab 2: Feed Elements
+  const communityFeedList = document.getElementById('community-feed-list');
+  const btnOpenQuickShare = document.getElementById('btn-open-quick-share');
+  const quickShareBox = document.getElementById('quick-share-box');
+  const btnSubmitQuickShare = document.getElementById('btn-submit-quick-share');
 
   // Tab 3: Search User Elements
   const searchUserForm = document.getElementById('search-user-form');
@@ -103,9 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchResultsWrapper = document.getElementById('search-results-wrapper');
   const targetUserHeader = document.getElementById('target-user-header');
   const targetGistsList = document.getElementById('target-gists-list');
-
-  // Current logged in user object
-  let currentUser = null;
 
   // 1. Kiểm tra tham số Deep-Link (Ví dụ: ?gist=ID)
   const urlParams = new URLSearchParams(window.location.search);
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <div style="display: flex; gap: 0.4rem;">
             <button class="btn btn-outline btn-xs" onclick="fetchAndOpenGist('${g.id}')">Xem</button>
-            <button class="btn btn-secondary btn-xs" onclick="pinExistingGistToBoard('${escapeHtml(desc)}', '${g.id}', '${escapeHtml(fileNames)}')">📌 Ghim PlayHTML</button>
+            <button class="btn btn-secondary btn-xs" onclick="postGistToCommunityFeed('${escapeHtml(desc)}', '${g.id}', '${escapeHtml(fileNames)}')">🌐 Đăng Lên Feed</button>
           </div>
         </li>
       `;
@@ -302,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       body: JSON.stringify({
         description: title || 'Snippet lưu từ Web Demo',
-        public: true, // Để chế độ public để bạn bè xem được
+        public: true,
         files: { [filename]: { content: code } }
       })
     });
@@ -337,61 +337,116 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Nút: "Lưu & Ghim lên Bảng PlayHTML"
+  // Nút: "Lưu & Đăng Lên Danh Sách Cộng Đồng"
   btnSaveAndPin.addEventListener('click', async () => {
     btnSaveAndPin.disabled = true;
-    btnSaveAndPin.textContent = '⏳ Đang lưu & tạo thẻ PlayHTML...';
+    btnSaveAndPin.textContent = '⏳ Đang lưu & đăng bài...';
 
     try {
       const result = await performSaveGist();
       if (!result) return;
 
-      // Tạo thẻ mới trên PlayHTML Canvas
-      addPlayCardToCanvas({
+      // Thêm bài mới vào danh sách Feed
+      addSnippetToCommunityFeed({
         title: result.title,
         author: currentUser ? currentUser.login : 'user',
-        preview: result.code.slice(0, 100),
-        fullCode: result.code,
-        gistId: result.data.id
+        desc: `File: ${result.filename} • Đoạn code vừa được lưu vào Gist`,
+        code: result.code,
+        gistId: result.data.id,
+        lang: detectLanguage(result.filename)
       });
 
-      showSuccess('🎉 Đã lưu vào GitHub và ghim thành công lên Bảng PlayHTML Realtime!');
-      // Tự động chuyển sang Tab PlayHTML để xem
-      document.querySelector('[data-tab="tab-playhtml"]').click();
+      showSuccess('🎉 Đã lưu vào GitHub và đăng lên Danh sách Cộng đồng!');
+      // Chuyển sang Tab Feed để xem
+      document.querySelector('[data-tab="tab-feed"]').click();
       setTimeout(checkAuthSession, 1200);
     } catch (err) {
-      showError(err.message || 'Lỗi khi lưu & ghim bài.');
+      showError(err.message || 'Lỗi khi lưu & đăng bài.');
     } finally {
       btnSaveAndPin.disabled = false;
-      btnSaveAndPin.textContent = '📌 Lưu & Ghim lên Bảng PlayHTML';
+      btnSaveAndPin.textContent = '📌 Lưu & Đăng Lên Danh Sách Cộng Đồng';
     }
   });
 
-  // 7. PLAYHTML REALTIME CANVAS LOGIC
-  function addPlayCardToCanvas({ title, author, preview, fullCode, gistId }) {
-    const card = document.createElement('div');
-    card.className = 'play-card';
-    card.setAttribute('can-move', ''); // PlayHTML Draggable
+  // 7. QUẢN LÝ DANH SÁCH FEED CỘNG ĐỒNG (NORMAL LIST VIEW)
+  window.toggleQuickShare = function(show) {
+    if (show) {
+      quickShareBox.classList.remove('hidden');
+    } else {
+      quickShareBox.classList.add('hidden');
+    }
+  };
 
-    // Tọa độ ngẫu nhiên gần giữa bảng
-    const randX = Math.floor(Math.random() * 200) + 50;
-    const randY = Math.floor(Math.random() * 150) + 50;
-    card.style.transform = `translate(${randX}px, ${randY}px)`;
+  btnOpenQuickShare.addEventListener('click', () => {
+    toggleQuickShare(quickShareBox.classList.contains('hidden'));
+  });
 
-    card.innerHTML = `
-      <div class="card-pill">Snippet Mới</div>
-      <h4>${escapeHtml(title)}</h4>
-      <p class="card-author">Tác giả: @${escapeHtml(author)}</p>
-      <pre class="snippet-preview">${escapeHtml(preview)}</pre>
-      <div class="play-card-footer">
-        <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
-        <button class="btn btn-outline btn-xs" onclick="openCodePreview('${escapeHtml(title)}', ${JSON.stringify(fullCode)}, '${gistId || ''}')">Xem Code</button>
+  btnSubmitQuickShare.addEventListener('click', () => {
+    const title = document.getElementById('quick-title').value.trim();
+    const lang = document.getElementById('quick-lang').value;
+    const code = document.getElementById('quick-code').value.trim();
+
+    if (!title || !code) {
+      showError('Vui lòng nhập đầy đủ tiêu đề và nội dung code!');
+      return;
+    }
+
+    addSnippetToCommunityFeed({
+      title,
+      author: currentUser ? currentUser.login : 'Thành viên',
+      desc: `Chia sẻ đoạn code ${lang} hữu ích cho cộng đồng.`,
+      code,
+      gistId: '',
+      lang
+    });
+
+    document.getElementById('quick-title').value = '';
+    document.getElementById('quick-code').value = '';
+    toggleQuickShare(false);
+    showSuccess('Đã đăng thành công lên danh sách cộng đồng!');
+  });
+
+  function addSnippetToCommunityFeed({ title, author, desc, code, gistId, lang }) {
+    const item = document.createElement('div');
+    item.className = 'feed-item';
+
+    const langClass = getLangClass(lang);
+    const icon = getLangIcon(lang);
+
+    item.innerHTML = `
+      <div class="feed-item-header">
+        <div class="author-info">
+          <span class="author-icon">${icon}</span>
+          <div>
+            <h3 class="feed-item-title">${escapeHtml(title)}</h3>
+            <div class="feed-item-meta">
+              Đăng bởi <strong>@${escapeHtml(author)}</strong> • <span class="badge-lang ${langClass}">${escapeHtml(lang)}</span>
+            </div>
+          </div>
+        </div>
+        <span class="feed-time">Vừa đăng</span>
+      </div>
+
+      <p class="feed-item-desc">${escapeHtml(desc)}</p>
+      <pre class="snippet-preview">${escapeHtml(code.slice(0, 220))}</pre>
+
+      <div class="feed-item-actions">
+        <div class="action-left">
+          <button can-toggle class="play-reaction-btn">❤️ <span>Thích</span></button>
+          <button can-toggle class="play-reaction-btn">⭐ <span>Đánh dấu</span></button>
+        </div>
+        <div class="action-right">
+          <button class="btn btn-outline btn-xs" onclick="openCodePreview('${escapeHtml(title)}', ${JSON.stringify(code)}, '${gistId || ''}')">👁️ Xem Toàn Bộ</button>
+          <button class="btn btn-secondary btn-xs" onclick="copySnippetCode(${JSON.stringify(code)})">📋 Sao Chép</button>
+          ${gistId ? `<button class="btn btn-primary btn-xs" onclick="forkGist('${gistId}')">🍴 Fork</button>` : ''}
+        </div>
       </div>
     `;
 
-    playCanvas.appendChild(card);
+    // Chèn lên đầu danh sách feed
+    communityFeedList.prepend(item);
 
-    // Kích hoạt lại PlayHTML để gắn sync vào thẻ mới
+    // Kích hoạt lại PlayHTML để gắn can-toggle cho nút Like
     if (window.playhtml && typeof window.playhtml.init === 'function') {
       try {
         window.playhtml.init();
@@ -399,52 +454,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Nút Thêm Thẻ Ghi Chú Nhanh trên PlayHTML
-  btnAddQuickNote.addEventListener('click', () => {
-    const note = document.createElement('div');
-    note.className = 'play-card sticky-card';
-    note.setAttribute('can-move', '');
-    note.setAttribute('can-duplicate', '');
-
-    const randX = Math.floor(Math.random() * 250) + 40;
-    const randY = Math.floor(Math.random() * 180) + 60;
-    note.style.transform = `translate(${randX}px, ${randY}px)`;
-
-    const authorName = currentUser ? currentUser.login : 'Thành viên';
-    note.innerHTML = `
-      <div class="sticky-title">📌 Ghi Chú (@${escapeHtml(authorName)})</div>
-      <p>Kéo thẻ này đi mọi nơi hoặc bấm duplicate để nhân bản!</p>
-      <div class="play-card-footer">
-        <span class="card-badge">can-move</span>
-        <button can-toggle class="play-reaction-btn">👍 <span>Đồng ý</span></button>
-      </div>
-    `;
-
-    playCanvas.appendChild(note);
-    if (window.playhtml?.init) window.playhtml.init();
-    showSuccess('Đã thêm thẻ mới vào bảng Realtime!');
-  });
-
-  // Cho phép ghim một Gist có sẵn từ danh sách cá nhân lên PlayHTML
-  window.pinExistingGistToBoard = async function(title, gistId, filename) {
+  window.postGistToCommunityFeed = async function(title, gistId, filename) {
     try {
       const res = await fetch(`https://api.github.com/gists/${gistId}`);
       const data = await res.json();
       const firstFile = Object.values(data.files || {})[0];
-      const codeContent = firstFile ? firstFile.content : '// No content';
+      const code = firstFile ? firstFile.content : '// Trống';
+      const lang = detectLanguage(filename);
 
-      addPlayCardToCanvas({
+      addSnippetToCommunityFeed({
         title,
         author: currentUser ? currentUser.login : 'user',
-        preview: codeContent.slice(0, 100),
-        fullCode: codeContent,
-        gistId
+        desc: `Bài tập từ Gist cá nhân (${filename})`,
+        code,
+        gistId,
+        lang
       });
 
-      showSuccess(`Đã ghim "${title}" lên Bảng PlayHTML!`);
-      document.querySelector('[data-tab="tab-playhtml"]').click();
+      showSuccess(`Đã đăng bài "${title}" lên Danh sách Cộng đồng!`);
+      document.querySelector('[data-tab="tab-feed"]').click();
     } catch (err) {
-      showError('Không thể tải nội dung Gist để ghim.');
+      showError('Không thể tải bài tập để đăng lên Feed.');
     }
   };
 
@@ -519,6 +549,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Helpers
+  function detectLanguage(filename = '') {
+    const ext = filename.split('.').pop().toLowerCase();
+    if (ext === 'py') return 'Python';
+    if (ext === 'js' || ext === 'ts') return 'JavaScript';
+    if (ext === 'cpp' || ext === 'c' || ext === 'h') return 'C++';
+    if (ext === 'java') return 'Java';
+    if (ext === 'html' || ext === 'css') return 'HTML/CSS';
+    return 'Code';
+  }
+
+  function getLangClass(lang = '') {
+    if (lang === 'Python') return 'lang-python';
+    if (lang === 'JavaScript') return 'lang-js';
+    if (lang === 'C++') return 'lang-cpp';
+    return 'lang-other';
+  }
+
+  function getLangIcon(lang = '') {
+    if (lang === 'Python') return '🐍';
+    if (lang === 'JavaScript') return '⚡';
+    if (lang === 'C++') return '🚀';
+    if (lang === 'Java') return '☕';
+    if (lang === 'HTML/CSS') return '🌐';
+    return '📄';
+  }
+
   function showError(msg) {
     errorBanner.textContent = msg;
     errorBanner.classList.remove('hidden');
@@ -582,6 +638,12 @@ window.copyModalCode = function() {
   if (!currentModalCode) return;
   navigator.clipboard.writeText(currentModalCode);
   window.showSuccess('Đã sao chép mã nguồn vào bộ nhớ tạm!');
+};
+
+window.copySnippetCode = function(code) {
+  if (!code) return;
+  navigator.clipboard.writeText(code);
+  window.showSuccess('Đã sao chép đoạn code vào bộ nhớ tạm!');
 };
 
 window.fetchAndOpenGist = async function(gistId) {
