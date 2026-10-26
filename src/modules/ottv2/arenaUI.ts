@@ -235,8 +235,12 @@ function handleMatchCompletion(): void {
       // 🏆 THẮNG RANK 1 -> TRỞ THÀNH TÂN VÔ ĐỊCH
       isGauntletActive = false;
       const appState = state;
-      const userName = appState.currentUser?.login || 'Cao Thủ Ẩn Danh';
-      const userAvatar = appState.currentUser?.avatar_url || '👑';
+      let userName = appState.currentUser?.login;
+      if (!userName) {
+        try { userName = localStorage.getItem('cached_gh_username') || ''; } catch (_) {}
+      }
+      userName = userName ? `@${userName}` : '@GitPlayer';
+      const userAvatar = '👑';
 
       const { newRank } = finalizeGauntletRanking(userName, userAvatar, defeatedOpponentsCount, null, []);
       showResultModal(
@@ -259,8 +263,12 @@ function handleMatchCompletion(): void {
     appendGameLog(`🛑 THUA TRẬN! Bạn đã dừng bước trước ${opponent.name} (Hạng ${opponent.rank}).`, 'loss');
 
     const appState = state;
-    const userName = appState.currentUser?.login || 'Chiến Binh Ẩn Danh';
-    const userAvatar = appState.currentUser?.avatar_url || '⚔️';
+    let userName = appState.currentUser?.login;
+    if (!userName) {
+      try { userName = localStorage.getItem('cached_gh_username') || ''; } catch (_) {}
+    }
+    userName = userName ? `@${userName}` : '@GitPlayer';
+    const userAvatar = '👤';
 
     // Chèn người chơi vào vị trí ngay sau đối thủ vừa thua
     const { newRank } = finalizeGauntletRanking(userName, userAvatar, defeatedOpponentsCount, opponent, []);
@@ -518,12 +526,27 @@ export function renderLadderSidebar(): void {
     if (isDefeated) li.classList.add('defeated-target');
     if (isUserEarned) li.classList.add('user-rank-spot');
 
+    // Đảm bảo tên hiển thị chuẩn Git (@username), không in URL ảnh
+    let displayName = (bot.name || '').trim();
+    if (!displayName || displayName.includes('http') || displayName.includes('avatars.githubusercontent.com')) {
+      let cached = '';
+      try { cached = localStorage.getItem('cached_gh_username') || ''; } catch (_) {}
+      displayName = cached ? `@${cached}` : '@GitPlayer';
+    } else if (!displayName.startsWith('@') && !displayName.includes('_') && !displayName.includes(' ')) {
+      displayName = `@${displayName}`;
+    }
+
+    // Avatar hiển thị an toàn: nếu là icon emoji thì giữ, nếu là URL thì hiển thị ảnh nhỏ 24px hoặc icon 👤
+    const avatarContent = bot.avatar && bot.avatar.startsWith('http')
+      ? `<img src="${bot.avatar}" class="ladder-avatar-img" alt="${displayName}" />`
+      : (bot.avatar || '👤');
+
     li.innerHTML = `
       <div class="ladder-rank-badge ${bot.rank === 1 ? 'rank-1' : bot.rank <= 3 ? 'rank-top3' : ''}">#${bot.rank}</div>
-      <div class="ladder-bot-avatar">${bot.avatar}</div>
+      <div class="ladder-bot-avatar">${avatarContent}</div>
       <div class="ladder-bot-details">
         <div class="ladder-bot-name">
-          ${bot.name}
+          ${displayName}
           ${isUserEarned ? '<span class="tag-you">⭐ Bạn Đang Ở Đây</span>' : ''}
         </div>
         <div class="ladder-bot-meta">${bot.title} • ${bot.tier}</div>

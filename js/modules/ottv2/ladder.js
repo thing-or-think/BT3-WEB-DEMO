@@ -25,9 +25,33 @@ export function loadLadder() {
         if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                gauntletState.ladder = parsed;
+                // Tự động dọn dẹp dữ liệu cũ nếu bị lưu nhầm URL avatar vào tên hoặc avatar
+                let cachedUsername = '';
+                try {
+                    cachedUsername = localStorage.getItem('cached_gh_username') || '';
+                }
+                catch (_) { }
+                const defaultGitName = cachedUsername ? `@${cachedUsername}` : '@GitPlayer';
+                const cleaned = parsed.map((bot) => {
+                    let updatedName = bot.name || defaultGitName;
+                    let updatedAvatar = bot.avatar || '👤';
+                    // Nếu name bị lưu nhầm thành đường link avatar URL
+                    if (updatedName.includes('http') || updatedName.includes('avatars.githubusercontent.com')) {
+                        updatedName = defaultGitName;
+                    }
+                    // Nếu avatar bị lưu dạng text URL thay vì icon
+                    if (updatedAvatar.includes('http') || updatedAvatar.includes('avatars.githubusercontent.com')) {
+                        updatedAvatar = '👤';
+                    }
+                    return {
+                        ...bot,
+                        name: updatedName,
+                        avatar: updatedAvatar,
+                    };
+                });
+                gauntletState.ladder = cleaned;
                 notifySubscribers();
-                return parsed;
+                return cleaned;
             }
         }
     }
@@ -104,14 +128,29 @@ export function finalizeGauntletRanking(challengerName, challengerAvatar, defeat
         // Ví dụ: Thua Rank 3 -> Vị trí mới là Rank 4 (người đứng Rank 4 cũ tụt xuống 5)
         newRank = stoppedAtOpponent.rank + 1;
     }
+    // Đảm bảo tên hiển thị chuẩn là Tên Git (@username), tuyệt đối không để URL avatar
+    let cleanName = (challengerName || '').trim();
+    if (!cleanName || cleanName.includes('http') || cleanName.includes('avatars.githubusercontent.com')) {
+        let cached = '';
+        try {
+            cached = localStorage.getItem('cached_gh_username') || '';
+        }
+        catch (_) { }
+        cleanName = cached ? `@${cached}` : '@GitPlayer';
+    }
+    else if (!cleanName.startsWith('@')) {
+        cleanName = `@${cleanName}`;
+    }
+    // Avatar luôn là emoji đại diện, không chứa chuỗi URL
+    const cleanAvatar = challengerAvatar && !challengerAvatar.includes('http') ? challengerAvatar : '👤';
     const newProfile = {
         id: `user_ranked_${Date.now()}`,
-        name: challengerName || 'Chiến Binh Ẩn Danh',
-        avatar: challengerAvatar || '⚔️',
+        name: cleanName,
+        avatar: cleanAvatar,
         rank: newRank,
         tier: newRank === 1 ? 'Master' : newRank <= 2 ? 'Diamond' : newRank <= 3 ? 'Gold' : newRank <= 5 ? 'Silver' : 'Bronze',
         title: newRank === 1 ? '👑 Tân Vô Địch OTTv2' : `Top ${newRank} Tháp Đấu`,
-        author: challengerName || 'Bạn',
+        author: cleanName,
         description: `Đã leo tháp xuất sắc đánh bại ${defeatedCount} cao thủ!`,
         code: 'botGold',
     };

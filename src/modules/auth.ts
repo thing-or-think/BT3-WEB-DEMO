@@ -23,6 +23,7 @@ export async function checkAuthSession(): Promise<void> {
         const data: { authenticated: boolean; user: GitHubUser; gists: GitHubGist[] } = await res.json();
         if (data.authenticated && data.user) {
           state.currentUser = data.user;
+          localStorage.setItem('cached_gh_username', data.user.login);
           renderAuthenticatedUI(data.user, data.gists);
           registerUserToCommunity(data.user.login);
           return;
@@ -37,6 +38,7 @@ export async function checkAuthSession(): Promise<void> {
   try {
     const user = await fetchUserProfile(token);
     state.currentUser = user;
+    try { localStorage.setItem('cached_gh_username', user.login); } catch (_) {}
 
     // Tự động ghi danh vào PlayHTML
     registerUserToCommunity(user.login);
