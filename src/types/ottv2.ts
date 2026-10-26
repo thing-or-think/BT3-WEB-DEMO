@@ -50,6 +50,10 @@ export interface BotProfile {
   description: string;
   code: string;
   gistId?: string;
+  gistUrl?: string;
+  isHumanPlayer?: boolean;
+  contestTag?: string;
+  lastSubmittedAt?: string;
 }
 
 export interface LadderMatchResult {

@@ -401,13 +401,20 @@ console.log(original.details.age); // 25 (Không bị thay đổi!)</pre>
       <div class="arena-header-card">
         <div class="arena-title-area">
           <h2>⚔️ Đấu Trường Cờ Oẳn Tù Tì OTTv2 (9×9)</h2>
-          <p>Thể thức <strong>Thang Bậc Cambridge Battlecode</strong>: Đấu tuần tự từ Rank thấp lên cao, thua dừng lại và chèn thứ hạng mới!</p>
+          <p>Thể thức <strong>Thang Bậc Cambridge Battlecode</strong>: Đấu tuần tự từ Rank thấp lên cao, tải code Gist nộp lần cuối của người chơi, thua dừng lại và chèn thứ hạng mới!</p>
+          <div class="contest-tag-bar" style="margin-top: 0.6rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="font-size: 0.8rem; color: #fbbf24; font-weight: 600;">🏷️ Tag Cuộc Thi:</span>
+            <input type="text" id="input-contest-tag" value="#ottv2_contest_2026_s1" style="background:#0d1117; color:#388bfd; border:1px solid #30363d; padding:2px 8px; border-radius:6px; font-family:var(--font-mono); font-size:0.8rem; width:220px;" title="Hashtag cuộc thi dùng để tìm Gist của các thí sinh" />
+            <button id="btn-sync-contest-gists" class="btn btn-outline btn-xs" title="Quét Gist của các thành viên cộng đồng có chứa tag này">🔄 Quét Gist Cộng Đồng</button>
+            <button id="btn-create-contest-gist" class="btn btn-secondary btn-xs" title="Mở Editor và điền sẵn mã mẫu để bạn nộp bài">📝 Nộp Bot Của Bạn (Tạo Mẫu)</button>
+          </div>
         </div>
         <div class="arena-controls">
-          <label class="mode-toggle">
-            <input type="checkbox" id="toggle-player-mode">
-            <span id="player-mode-label">🎮 Tự Điều Khiển</span>
-          </label>
+          <select id="select-player-mode" class="form-select" style="background:#21262d; color:#f0f6fc; border:1px solid #30363d; padding:0.4rem; border-radius:8px;">
+            <option value="manual">🎮 Tự Điều Khiển (Bằng tay)</option>
+            <option value="builtin_bot">🤖 Bot Tự Động (Mặc định)</option>
+            <option value="my_gist">📁 Dùng Gist Nộp Lần Cuối Của Tôi</option>
+          </select>
           <select id="select-sim-speed" class="form-select" style="background:#21262d; color:#f0f6fc; border:1px solid #30363d; padding:0.4rem; border-radius:8px;">
             <option value="800">Tốc độ: Chậm (0.8s)</option>
             <option value="400" selected>Tốc độ: Vừa (0.4s)</option>

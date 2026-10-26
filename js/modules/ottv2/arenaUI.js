@@ -1,16 +1,20 @@
 import { applyMove, BOARD_SIZE, createInitialBoard, getPieceEmoji, getPieceNameVi, getValidMovesForPiece, RED_BASE, BLUE_BASE, } from './engine.js';
 import { executeBotMove } from './bots.js';
-import { finalizeGauntletRanking, getAscendingLadderQueue, getGauntletState, loadLadder, resetLadder, subscribeGauntletState, } from './ladder.js';
+import { finalizeGauntletRanking, getAscendingLadderQueue, getGauntletState, loadLadder, resetLadder, subscribeGauntletState, syncLadderWithCommunityGists, } from './ladder.js';
+import { getActiveContestTag, setActiveContestTag, fetchPlayerLatestContestGist, } from '../../services/contestGist.js';
+import { loadBotTemplateIntoEditor } from '../editor.js';
 import { state } from '../state.js';
+import { showSuccess, showError } from '../../utils/dom.js';
 let currentBoard = createInitialBoard();
 let selectedPiece = null;
 let highlightedMoves = [];
 let autoPlayInterval = null;
-let simulationSpeedMs = 500; // Mặc định 500ms / nước
+let simulationSpeedMs = 400; // Mặc định 400ms / nước
 // Trạng thái phiên Leo Rank
 let gauntletQueue = [];
 let currentQueueIndex = 0; // Đang đấu với ai trong queue
-let isPlayerAutoBot = false; // Người chơi tự đánh hay dùng bot
+let playerControlMode = 'manual';
+let myGistBotCode = null;
 let defeatedOpponentsCount = 0;
 let isGauntletActive = false;
 export function initArenaUI() {
@@ -26,6 +30,44 @@ export function initArenaUI() {
  * Thiết lập các sự kiện nút bấm trên giao diện
  */
 function setupEventListeners() {
+    // Input Tag cuộc thi
+    const inputContestTag = document.getElementById('input-contest-tag');
+    if (inputContestTag) {
+        inputContestTag.value = getActiveContestTag();
+        inputContestTag.addEventListener('change', () => {
+            const val = inputContestTag.value.trim();
+            if (val) {
+                setActiveContestTag(val);
+                showSuccess(`Đã lưu tag cuộc thi: ${val}`);
+            }
+        });
+    }
+    // Nút Quét Gist Cộng Đồng
+    const btnSyncGists = document.getElementById('btn-sync-contest-gists');
+    if (btnSyncGists) {
+        btnSyncGists.addEventListener('click', async () => {
+            btnSyncGists.textContent = '⏳ Đang quét...';
+            try {
+                appendGameLog(`🔍 Đang quét Gist của các thành viên cộng đồng theo tag "${getActiveContestTag()}"...`);
+                const updated = await syncLadderWithCommunityGists(state.communityUsers);
+                showSuccess(`Đã đồng bộ xong! Tháp đấu hiện có ${updated.length} đối thủ.`);
+                appendGameLog(`✅ Đã đồng bộ Tháp Đấu với các bản nộp Gist mới nhất của cộng đồng!`, 'win');
+            }
+            catch (_) {
+                showError('Không thể quét Gist cộng đồng.');
+            }
+            finally {
+                btnSyncGists.textContent = '🔄 Quét Gist Cộng Đồng';
+            }
+        });
+    }
+    // Nút Nộp Bot Của Bạn (Tạo Gist Mẫu)
+    const btnCreateGist = document.getElementById('btn-create-contest-gist');
+    if (btnCreateGist) {
+        btnCreateGist.addEventListener('click', () => {
+            loadBotTemplateIntoEditor(getActiveContestTag());
+        });
+    }
     // Nút bắt đầu Leo Rank
     const btnStartGauntlet = document.getElementById('btn-start-gauntlet');
     if (btnStartGauntlet) {
@@ -48,16 +90,35 @@ function setupEventListeners() {
             simulationSpeedMs = parseInt(e.target.value, 10);
         });
     }
-    // Nút chuyển chế độ: Tự đánh vs Bot tự động
-    const togglePlayerMode = document.getElementById('toggle-player-mode');
-    if (togglePlayerMode) {
-        togglePlayerMode.addEventListener('change', (e) => {
-            isPlayerAutoBot = e.target.checked;
-            const statusText = document.getElementById('player-mode-label');
-            if (statusText) {
-                statusText.textContent = isPlayerAutoBot ? '🤖 Bot Tự Đánh' : '🎮 Tự Điều Khiển';
+    // Chế độ chơi của người chơi (Manual, Built-in Bot, My Gist)
+    const selectPlayerMode = document.getElementById('select-player-mode');
+    if (selectPlayerMode) {
+        selectPlayerMode.addEventListener('change', async () => {
+            playerControlMode = selectPlayerMode.value;
+            if (playerControlMode === 'my_gist') {
+                let myUser = state.currentUser?.login;
+                if (!myUser) {
+                    try {
+                        myUser = localStorage.getItem('cached_gh_username') || '';
+                    }
+                    catch (_) { }
+                }
+                if (myUser) {
+                    appendGameLog(`🔍 Đang tải Gist nộp lần cuối của @${myUser} (Tag: ${getActiveContestTag()})...`);
+                    const myGist = await fetchPlayerLatestContestGist(myUser, getActiveContestTag());
+                    if (myGist && myGist.code) {
+                        myGistBotCode = myGist.code;
+                        appendGameLog(`✅ Đã nạp thành công Gist của bạn (Cập nhật: ${new Date(myGist.updatedAt).toLocaleTimeString()})!`, 'win');
+                    }
+                    else {
+                        appendGameLog(`⚠️ Chưa tìm thấy Gist có tag ${getActiveContestTag()} của bạn. Bạn hãy bấm "Nộp Bot Của Bạn" để tạo bài!`, 'loss');
+                    }
+                }
+                else {
+                    appendGameLog(`⚠️ Bạn chưa đăng nhập GitHub. Vui lòng đăng nhập hoặc nhập token để lấy Gist của bạn!`, 'loss');
+                }
             }
-            if (isPlayerAutoBot && currentBoard.turn === 'red' && isGauntletActive) {
+            if (playerControlMode !== 'manual' && currentBoard.turn === 'red' && isGauntletActive) {
                 stepMatch();
             }
         });
@@ -88,7 +149,7 @@ export function startGauntletRun() {
 /**
  * Khởi tạo trận đấu với đối thủ hiện tại trong hàng đợi
  */
-function setupMatchAgainstCurrentOpponent() {
+async function setupMatchAgainstCurrentOpponent() {
     if (autoPlayInterval) {
         clearInterval(autoPlayInterval);
         autoPlayInterval = null;
@@ -102,6 +163,37 @@ function setupMatchAgainstCurrentOpponent() {
     renderBoard();
     renderMatchInfo(opponent);
     appendGameLog(`⚔️ BẮT ĐẦU TRẬN: Bạn (Phe Đỏ) vs ${opponent.name} (Hạng ${opponent.rank} - Phe Xanh)`);
+    // NẾU ĐỐI THỦ LÀ NGƯỜI CHƠI THẬT HOẶC CÓ GIST: LẤY BẢN NỘP CUỐI CÙNG
+    if (opponent.isHumanPlayer || (opponent.author && !['playground', 'cambridge_fellow', 'code_runner', 'viet_dev'].includes(opponent.author))) {
+        appendGameLog(`🔍 Đang kiểm tra bản nộp Gist mới nhất của ${opponent.name}...`);
+        try {
+            const latestGist = await fetchPlayerLatestContestGist(opponent.author, getActiveContestTag());
+            if (latestGist && latestGist.code) {
+                opponent.code = latestGist.code;
+                opponent.gistId = latestGist.gistId;
+                opponent.lastSubmittedAt = latestGist.updatedAt;
+                const timeFormatted = new Date(latestGist.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                appendGameLog(`⚡ Đã tải code Gist nộp lần cuối (${timeFormatted}) của ${opponent.name}!`);
+            }
+        }
+        catch (_) { }
+    }
+    // NẾU BẠN CHỌN CHẾ ĐỘ "DÙNG GIST CỦA TÔI"
+    if (playerControlMode === 'my_gist') {
+        let myUser = state.currentUser?.login;
+        if (!myUser) {
+            try {
+                myUser = localStorage.getItem('cached_gh_username') || '';
+            }
+            catch (_) { }
+        }
+        if (myUser) {
+            const myGist = await fetchPlayerLatestContestGist(myUser, getActiveContestTag());
+            if (myGist && myGist.code) {
+                myGistBotCode = myGist.code;
+            }
+        }
+    }
     updateGauntletHeaderUI();
     // Bắt đầu vòng lặp trận đấu
     startMatchLoop();
@@ -136,10 +228,12 @@ async function stepMatch() {
     const opponent = gauntletQueue[currentQueueIndex];
     if (currentTurn === 'red') {
         // Lượt của Người chơi (Phe Đỏ)
-        if (isPlayerAutoBot) {
-            // Dùng Bot hỗ trợ của người chơi
-            const botMove = await executeBotMove({ ...opponent, code: 'botGold' }, // Sử dụng bot cấp Gold làm đại diện cho người chơi khi bật auto
-            currentBoard, 'red');
+        if (playerControlMode === 'builtin_bot') {
+            const botMove = await executeBotMove({ ...opponent, code: 'botGold' }, currentBoard, 'red');
+            makeBoardMove(botMove);
+        }
+        else if (playerControlMode === 'my_gist') {
+            const botMove = await executeBotMove({ ...opponent, code: myGistBotCode || 'botGold' }, currentBoard, 'red');
             makeBoardMove(botMove);
         }
         else {
@@ -147,7 +241,7 @@ async function stepMatch() {
         }
     }
     else {
-        // Lượt của Đối thủ máy (Phe Xanh)
+        // Lượt của Đối thủ máy / người chơi khác (Phe Xanh)
         const botMove = await executeBotMove(opponent, currentBoard, 'blue');
         makeBoardMove(botMove);
     }
@@ -239,9 +333,10 @@ async function runFastSimulation() {
     }
     const opponent = gauntletQueue[currentQueueIndex];
     let safetyLimit = 300;
+    const playerCode = playerControlMode === 'my_gist' ? (myGistBotCode || 'botGold') : 'botGold';
     while (currentBoard.winner === null && safetyLimit-- > 0) {
         const color = currentBoard.turn;
-        const botToRun = color === 'red' ? { ...opponent, code: 'botGold' } : opponent;
+        const botToRun = color === 'red' ? { ...opponent, code: playerCode } : opponent;
         const move = await executeBotMove(botToRun, currentBoard, color);
         currentBoard = applyMove(currentBoard, move);
     }
@@ -385,8 +480,8 @@ export function renderBoard() {
 function onCellClicked(col, row) {
     if (currentBoard.winner !== null || !isGauntletActive)
         return;
-    // Nếu đang là lượt của máy (Xanh) hoặc đang bật Auto-Bot thì không cho nhấp can thiệp
-    if (currentBoard.turn !== 'red' || isPlayerAutoBot)
+    // Nếu đang là lượt của máy (Xanh) hoặc đang không ở chế độ manual thì không cho nhấp can thiệp
+    if (currentBoard.turn !== 'red' || playerControlMode !== 'manual')
         return;
     const clickedPiece = currentBoard.grid[row][col];
     // 1. Nếu bấm vào quân đồng minh của mình -> Chọn quân

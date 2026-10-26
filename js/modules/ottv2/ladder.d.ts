@@ -30,3 +30,7 @@ export declare function finalizeGauntletRanking(challengerName: string, challeng
     newRank: number;
     updatedLadder: BotProfile[];
 };
+/**
+ * Quét danh bạ cộng đồng và đồng bộ các người chơi đã nộp Gist vào Tháp Đấu
+ */
+export declare function syncLadderWithCommunityGists(communityUsers: string[]): Promise<BotProfile[]>;

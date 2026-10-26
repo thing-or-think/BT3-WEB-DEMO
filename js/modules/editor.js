@@ -110,4 +110,52 @@ export function initEditorModule() {
         }
     });
 }
+/**
+ * Nạp sẵn Code Bot mẫu thi đấu OTTv2 vào Tab Soạn Thảo (Editor)
+ */
+export function loadBotTemplateIntoEditor(tag = '#ottv2_contest_2026_s1') {
+    const titleInput = document.getElementById('snippet-title');
+    const filenameInput = document.getElementById('snippet-filename');
+    const codeTextarea = document.getElementById('snippet-code');
+    if (titleInput) {
+        titleInput.value = `Bot dự thi OTTv2 Battlecode ${tag}`;
+    }
+    if (filenameInput) {
+        filenameInput.value = 'ottv2_bot.js';
+    }
+    if (codeTextarea) {
+        codeTextarea.value = `// ==========================================
+// OTTv2 9x9 BATTLECODE BOT TEMPLATE
+// Tag cuộc thi: ${tag}
+// ==========================================
+
+function decideMove(gameState, myColor, allMoves) {
+  // 1. Kiểm tra nếu có nước đi tiến thẳng vào căn cứ địch -> Đi ngay để THẮNG!
+  const enemyBase = myColor === 'red' ? { col: 8, row: 8 } : { col: 0, row: 0 };
+  const winMove = allMoves.find(m => m.to.col === enemyBase.col && m.to.row === enemyBase.row);
+  if (winMove) return winMove;
+
+  // 2. Tìm các nước đi ăn quân đối phương (Búa > Kéo > Bao > Búa)
+  const captureMoves = allMoves.filter(m => {
+    const target = gameState.grid[m.to.row][m.to.col];
+    return target && target.color !== myColor;
+  });
+
+  if (captureMoves.length > 0) {
+    return captureMoves[0];
+  }
+
+  // 3. Tiến gần về phía căn cứ đối phương nhất
+  allMoves.sort((a, b) => {
+    const distA = Math.max(Math.abs(a.to.col - enemyBase.col), Math.abs(a.to.row - enemyBase.row));
+    const distB = Math.max(Math.abs(b.to.col - enemyBase.col), Math.abs(b.to.row - enemyBase.row));
+    return distA - distB;
+  });
+
+  return allMoves[0];
+}`;
+    }
+    switchTab('tab-editor');
+    showSuccess(`Đã tạo sẵn mẫu Bot nộp thi với tag ${tag}. Hãy chỉnh sửa và bấm "Lưu vào GitHub Gist"!`);
+}
 //# sourceMappingURL=editor.js.map

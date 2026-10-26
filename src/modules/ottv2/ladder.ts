@@ -1,5 +1,6 @@
 import { BotProfile, GauntletState, LadderMatchResult } from '../../types/ottv2.js';
 import { DEFAULT_LADDER_BOTS } from './bots.js';
+import { scanCommunityPlayersWithContestGists, getActiveContestTag } from '../../services/contestGist.js';
 
 const STORAGE_KEY = 'ottv2_gauntlet_ladder_v1';
 
@@ -194,4 +195,42 @@ export function finalizeGauntletRanking(
   notifySubscribers();
 
   return { newRank, updatedLadder };
+}
+
+/**
+ * Quét danh bạ cộng đồng và đồng bộ các người chơi đã nộp Gist vào Tháp Đấu
+ */
+export async function syncLadderWithCommunityGists(communityUsers: string[]): Promise<BotProfile[]> {
+  const contestTag = getActiveContestTag();
+  const playerBots = await scanCommunityPlayersWithContestGists(communityUsers, contestTag);
+
+  if (playerBots.length === 0) return gauntletState.ladder;
+
+  const currentLadder = [...gauntletState.ladder];
+
+  for (const playerBot of playerBots) {
+    const existingIdx = currentLadder.findIndex(
+      b => b.name.toLowerCase() === playerBot.name.toLowerCase() ||
+           b.author.toLowerCase() === playerBot.author.toLowerCase()
+    );
+
+    if (existingIdx >= 0) {
+      // Cập nhật thông tin nộp bài mới nhất
+      currentLadder[existingIdx] = {
+        ...currentLadder[existingIdx],
+        code: playerBot.code,
+        gistId: playerBot.gistId,
+        gistUrl: playerBot.gistUrl,
+        lastSubmittedAt: playerBot.lastSubmittedAt,
+        description: playerBot.description,
+        isHumanPlayer: true,
+      };
+    } else {
+      // Chèn người chơi mới vào ladder (ở phân khúc Hạng 3 / 4)
+      currentLadder.splice(2, 0, playerBot);
+    }
+  }
+
+  saveLadder(currentLadder);
+  return gauntletState.ladder;
 }
