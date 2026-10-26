@@ -16,7 +16,7 @@ const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
 
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname, { dotfiles: 'ignore' }));
 
 // Thời hạn lưu Cookie: 30 ngày (tính bằng mili-giây)
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
