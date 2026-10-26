@@ -42,6 +42,9 @@
       <button class="nav-tab" data-tab="tab-search">
         🔍 Xem Code Người Khác (@username)
       </button>
+      <button class="nav-tab" data-tab="tab-arena">
+        ⚔️ Đấu Trường OTTv2 (Leo Rank)
+      </button>
     </nav>
 
     <!-- ========================================== -->
@@ -389,6 +392,103 @@ console.log(original.details.age); // 25 (Không bị thay đổi!)</pre>
         </div>
       </div>
     </main>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: ĐẤU TRƯỜNG AI OTTV2 9x9 (LEO RANK) -->
+    <!-- ========================================== -->
+    <main id="tab-arena" class="tab-content">
+      <!-- Arena Header Card -->
+      <div class="arena-header-card">
+        <div class="arena-title-area">
+          <h2>⚔️ Đấu Trường Cờ Oẳn Tù Tì OTTv2 (9×9)</h2>
+          <p>Thể thức <strong>Thang Bậc Cambridge Battlecode</strong>: Đấu tuần tự từ Rank thấp lên cao, thua dừng lại và chèn thứ hạng mới!</p>
+        </div>
+        <div class="arena-controls">
+          <label class="mode-toggle">
+            <input type="checkbox" id="toggle-player-mode">
+            <span id="player-mode-label">🎮 Tự Điều Khiển</span>
+          </label>
+          <select id="select-sim-speed" class="form-select" style="background:#21262d; color:#f0f6fc; border:1px solid #30363d; padding:0.4rem; border-radius:8px;">
+            <option value="800">Tốc độ: Chậm (0.8s)</option>
+            <option value="400" selected>Tốc độ: Vừa (0.4s)</option>
+            <option value="150">Tốc độ: Nhanh (0.15s)</option>
+          </select>
+          <button id="btn-fast-sim" class="btn btn-secondary btn-sm" title="Mô phỏng cả trận trong tích tắc">⚡ Bỏ qua / Mô phỏng nhanh</button>
+          <button id="btn-start-gauntlet" class="btn btn-primary btn-sm">🚀 Bắt Đầu Leo Rank</button>
+          <button id="btn-forfeit-match" class="btn btn-outline btn-sm" style="color:#ef4444; border-color:#ef4444;">🏳️ Đầu Hàng</button>
+        </div>
+      </div>
+
+      <!-- Match Layout: Board on left, Ladder & Logs on right -->
+      <div class="arena-layout">
+        <!-- Bàn Cờ 9x9 & Thanh Trạng Thái -->
+        <div class="board-container">
+          <div class="match-status-bar" style="width: 100%; max-width: 520px;">
+            <div id="turn-indicator">
+              <span>Chuẩn bị: Bấm <strong>"Bắt Đầu Leo Rank"</strong> để thách đấu</span>
+            </div>
+            <div class="pieces-count-badge">
+              <span class="count-red">🔴 Đỏ: <span id="red-pieces-count">9</span></span>
+              <span class="count-blue">🔵 Xanh: <span id="blue-pieces-count">9</span></span>
+            </div>
+          </div>
+
+          <!-- Grid 9x9 -->
+          <div id="ottv2-board" class="board-grid"></div>
+
+          <!-- Ghi chú luật chơi vắn tắt -->
+          <div style="margin-top: 1rem; font-size: 0.78rem; color: #8b949e; text-align: center; max-width: 520px;">
+            🚩 <strong>Thắng:</strong> Chiếm Căn cứ đối phương (Đỏ vào <code>i9</code>, Xanh vào <code>a1</code>) hoặc Diệt sạch 9 quân.<br>
+            ✊ <strong>Khắc chế:</strong> Đấm (Búa) > ✌️ Kéo > 🖐️ Lá (Bao) > ✊ Đấm. Đi 1 ô theo 8 hướng.
+          </div>
+        </div>
+
+        <!-- Sidebar: Bảng Xếp Hạng Thang Bậc & Nhật Ký -->
+        <div class="arena-sidebar">
+          <!-- Bảng Xếp Hạng Tháp Đấu -->
+          <div class="ladder-card">
+            <div class="ladder-card-header">
+              <h3>🏆 Thang Bậc Xếp Hạng</h3>
+              <button id="btn-reset-ladder" class="btn btn-outline btn-xs" title="Khôi phục mặc định">🔄 Reset</button>
+            </div>
+            <div id="gauntlet-progress-status" style="font-size: 0.8rem; color: #fbbf24; margin-bottom: 0.5rem; font-weight: 600;">
+              Thách đấu từ Hạng thấp nhất lên Top 1
+            </div>
+            <ul id="gauntlet-ladder-list" class="ladder-list"></ul>
+          </div>
+
+          <!-- Nhật Ký Nước Đi Thời Gian Thực -->
+          <div class="match-log-card">
+            <h4>📜 Nhật Ký Nước Đi</h4>
+            <div id="ottv2-move-history" class="move-log-box">
+              <div class="log-entry log-system">Sẵn sàng bước vào Đấu Trường OTTv2...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- MODAL KẾT QUẢ LEO RANK (CAMBRIDGE GAUNTLET RESULT) -->
+    <div id="gauntlet-result-modal" class="modal hidden">
+      <div class="modal-overlay" onclick="closeGauntletResultModal()"></div>
+      <div class="modal-dialog" style="max-width: 480px; text-align: center;">
+        <div class="modal-header">
+          <h3 id="gauntlet-result-title">Kết Quả Lượt Leo Rank</h3>
+          <button class="modal-close" onclick="closeGauntletResultModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="result-rank-showcase">
+            <div class="rank-trophy-icon">🏆</div>
+            <div style="font-size: 0.9rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em;">Thứ Hạng Mới Của Bạn</div>
+            <div id="gauntlet-result-rank" class="rank-badge-large">#--</div>
+            <p id="gauntlet-result-desc" style="margin-top: 1rem; font-size: 0.95rem; line-height: 1.5;"></p>
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content: center;">
+          <button class="btn btn-primary" onclick="closeGauntletResultModal()">Xác Nhận & Xem Bảng Xếp Hạng</button>
+        </div>
+      </div>
+    </div>
 
     <!-- MODAL XEM CHI TIẾT CODE -->
     <div id="code-modal" class="modal hidden">

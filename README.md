@@ -24,6 +24,13 @@ Dự án kết hợp kiến trúc **"Git chính là Database"** với thư việ
 ### 4. ❤️ Tương tác thời gian thực với PlayHTML
 - Các nút phản ứng (❤️ Thích, ⭐ Hữu ích...) sử dụng thuộc tính `can-toggle` của PlayHTML để đồng bộ trạng thái bấm like tức thời giữa các phiên duyệt web.
 
+### 5. ⚔️ Đấu Trường AI OTTv2 9x9 (Cambridge Battlecode & Tháp Leo Rank Offline)
+- **Bàn cờ 9×9 chiến thuật:** 2 phe Đỏ (Căn cứ `a1`) và Xanh (Căn cứ `i9`), mỗi bên 9 quân (3 ✊ Đấm, 3 🖐️ Lá, 3 ✌️ Kéo). Di chuyển 8 hướng, quy tắc khắc chế Oẳn Tù Tì.
+- **Quy chế Leo Thang Bậc (Gauntlet):** Người chơi thách đấu các đối thủ/bot theo thứ tự từ **Rank thấp nhất lên Rank cao nhất**:
+  - **Thắng:** Tiếp tục leo lên đối thủ ở thứ hạng cao hơn.
+  - **Thua:** Dừng lại ngay lập tức tại vị trí thua cuộc, hệ thống tự động **chèn thứ hạng mới của người chơi vào vị trí ngay sau đối thủ vừa thua** (hoặc vinh danh Tân Vô Địch Rank 1 nếu thắng toàn bộ).
+- **Zero-Backend Sandbox:** Mô phỏng trận đấu 100% client-side, hỗ trợ cả tự đánh lẫn bot tự hành tốc độ cao (0.15s - 0.8s hoặc Instant Skip).
+
 ---
 
 ## 🚀 Khởi chạy cục bộ (Tùy chọn)

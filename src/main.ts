@@ -4,6 +4,7 @@ import { initEditorModule } from './modules/editor.js';
 import { initFeedModule, initPlayHTMLCommunitySync, postGistToCommunityFeed } from './modules/feed.js';
 import { initSearchModule, fetchAndOpenGist } from './modules/search.js';
 import { initModal, openCodePreview, closeCodeModal, copyModalCode, forkCurrentModalCode } from './modules/modal.js';
+import { initArenaUI } from './modules/ottv2/arenaUI.js';
 import { initPlayHTMLService } from './services/playhtml.js';
 import { copyToClipboard, showError, showSuccess } from './utils/dom.js';
 import { forkGist } from './services/github.js';
@@ -69,7 +70,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 6. Quản lý Tìm kiếm Gist người dùng
   initSearchModule();
 
-  // 7. Khởi tạo PlayHTML Realtime Sync TRƯỚC để kết nối sẵn WebSocket PartyKit
+  // 7. Khởi tạo Đấu Trường OTTv2 (Cambridge Battlecode & Gauntlet Ladder)
+  initArenaUI();
+
+  // 8. Khởi tạo PlayHTML Realtime Sync TRƯỚC để kết nối sẵn WebSocket PartyKit
   await initPlayHTMLService(() => {
     initPlayHTMLCommunitySync();
   });
