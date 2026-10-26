@@ -41,7 +41,7 @@ let simulationSpeedMs = 400; // Mặc định 400ms / nước
 // Trạng thái phiên Leo Rank
 let gauntletQueue: BotProfile[] = [];
 let currentQueueIndex = 0; // Đang đấu với ai trong queue
-let playerControlMode: 'manual' | 'builtin_bot' | 'my_gist' = 'manual';
+let playerControlMode: 'manual' | 'builtin_bot' | 'my_gist' = 'my_gist'; // MẶC ĐỊNH LÀ BOT TỰ ĐỘNG CHƠI
 let myGistBotCode: string | null = null;
 let defeatedOpponentsCount = 0;
 let isGauntletActive = false;
@@ -129,6 +129,7 @@ function setupEventListeners(): void {
   // Chế độ chơi của người chơi (Manual, Built-in Bot, My Gist)
   const selectPlayerMode = document.getElementById('select-player-mode') as HTMLSelectElement | null;
   if (selectPlayerMode) {
+    selectPlayerMode.value = playerControlMode;
     selectPlayerMode.addEventListener('change', async () => {
       playerControlMode = selectPlayerMode.value as 'manual' | 'builtin_bot' | 'my_gist';
       if (playerControlMode === 'my_gist') {
@@ -217,17 +218,24 @@ async function setupMatchAgainstCurrentOpponent(): Promise<void> {
     } catch (_) {}
   }
 
-  // NẾU BẠN CHỌN CHẾ ĐỘ "DÙNG GIST CỦA TÔI"
+  // NẾU BẠN CHỌN CHẾ ĐỘ "DÙNG GIST CỦA TÔI" (MẶC ĐỊNH BOT TỰ CHƠI)
   if (playerControlMode === 'my_gist') {
     let myUser = state.currentUser?.login;
     if (!myUser) {
       try { myUser = localStorage.getItem('cached_gh_username') || ''; } catch (_) {}
     }
     if (myUser) {
-      const myGist = await fetchPlayerLatestContestGist(myUser, getActiveContestTag());
-      if (myGist && myGist.code) {
-        myGistBotCode = myGist.code;
-      }
+      try {
+        const myGist = await fetchPlayerLatestContestGist(myUser, getActiveContestTag());
+        if (myGist && myGist.code) {
+          myGistBotCode = myGist.code;
+          appendGameLog(`🤖 Đang chạy Code Gist mới nhất của bạn (@${myUser})!`, 'win');
+        } else {
+          appendGameLog(`💡 Chưa tìm thấy Gist tag ${getActiveContestTag()} của bạn. Hệ thống tự động dùng Bot AI đại diện!`);
+        }
+      } catch (_) {}
+    } else {
+      appendGameLog(`💡 Bạn chưa đăng nhập GitHub. Hệ thống tự động dùng Bot AI đại diện thi đấu!`);
     }
   }
 
@@ -235,6 +243,15 @@ async function setupMatchAgainstCurrentOpponent(): Promise<void> {
 
   // Bắt đầu vòng lặp trận đấu
   startMatchLoop();
+
+  // THỰC HIỆN NGAY NƯỚC ĐI ĐẦU TIÊN NẾU BOT TỰ ĐỘNG CHƠI
+  if (playerControlMode !== 'manual') {
+    setTimeout(() => {
+      if (isGauntletActive && currentBoard.winner === null && currentBoard.turn === 'red') {
+        stepMatch();
+      }
+    }, 150);
+  }
 }
 
 /**

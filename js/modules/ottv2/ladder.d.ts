@@ -5,7 +5,7 @@ export declare function subscribeGauntletState(cb: (state: GauntletState) => voi
  */
 export declare function loadLadder(): BotProfile[];
 /**
- * Lưu danh sách Bảng Xếp Hạng
+ * Lưu danh sách Bảng Xếp Hạng (Luôn loại bỏ trùng lặp)
  */
 export declare function saveLadder(ladder: BotProfile[]): void;
 /**

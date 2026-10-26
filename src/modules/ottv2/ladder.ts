@@ -39,7 +39,7 @@ export function loadLadder(): BotProfile[] {
         const defaultGitName = cachedUsername ? `@${cachedUsername}` : '@GitPlayer';
 
         const cleaned: BotProfile[] = parsed.map((bot: BotProfile) => {
-          let updatedName = bot.name || defaultGitName;
+          let updatedName = (bot.name || defaultGitName).trim();
           let updatedAvatar = bot.avatar || '👤';
 
           // Nếu name bị lưu nhầm thành đường link avatar URL
@@ -59,9 +59,26 @@ export function loadLadder(): BotProfile[] {
           };
         });
 
-        gauntletState.ladder = cleaned;
+        // LOẠI BỎ HOÀN TOÀN TRÙNG LẶP: Mỗi tên người chơi chỉ giữ lại 1 vị trí cao nhất
+        const seenNames = new Set<string>();
+        const deduplicated: BotProfile[] = [];
+        for (const bot of cleaned) {
+          const normKey = (bot.name || '').toLowerCase().trim();
+          if (!seenNames.has(normKey)) {
+            seenNames.add(normKey);
+            deduplicated.push(bot);
+          }
+        }
+
+        // Chuẩn hóa lại thứ tự rank 1..N
+        const normalized = deduplicated.map((bot, idx) => ({
+          ...bot,
+          rank: idx + 1,
+        }));
+
+        gauntletState.ladder = normalized;
         notifySubscribers();
-        return cleaned;
+        return normalized;
       }
     }
   } catch (err) {
@@ -74,14 +91,26 @@ export function loadLadder(): BotProfile[] {
 }
 
 /**
- * Lưu danh sách Bảng Xếp Hạng
+ * Lưu danh sách Bảng Xếp Hạng (Luôn loại bỏ trùng lặp)
  */
 export function saveLadder(ladder: BotProfile[]): void {
+  // Lọc trùng lặp theo tên
+  const seenNames = new Set<string>();
+  const deduplicated: BotProfile[] = [];
+  for (const bot of ladder) {
+    const normKey = (bot.name || '').toLowerCase().trim();
+    if (!seenNames.has(normKey)) {
+      seenNames.add(normKey);
+      deduplicated.push(bot);
+    }
+  }
+
   // Chuẩn hóa lại rank từ 1 đến N
-  const normalized = ladder.map((bot, idx) => ({
+  const normalized = deduplicated.map((bot, idx) => ({
     ...bot,
     rank: idx + 1,
   }));
+
   gauntletState.ladder = normalized;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
@@ -164,23 +193,35 @@ export function finalizeGauntletRanking(
   // Avatar luôn là emoji đại diện, không chứa chuỗi URL
   const cleanAvatar = challengerAvatar && !challengerAvatar.includes('http') ? challengerAvatar : '👤';
 
+  // 1. Kiểm tra xem người chơi đã có mặt trên bảng xếp hạng chưa để tránh TRÙNG LẶP
+  const existingIdx = ladder.findIndex(b => b.name.toLowerCase() === cleanName.toLowerCase());
+  let targetRank = newRank;
+
+  if (existingIdx >= 0) {
+    const existingRank = existingIdx + 1;
+    // Giữ lại thứ hạng tốt nhất của người chơi (số nhỏ hơn = thứ hạng cao hơn)
+    targetRank = Math.min(existingRank, newRank);
+    // Xóa vị trí cũ của người chơi để không bao giờ bị nhân bản nhiều dòng
+    ladder.splice(existingIdx, 1);
+  }
+
   const newProfile: BotProfile = {
     id: `user_ranked_${Date.now()}`,
     name: cleanName,
     avatar: cleanAvatar,
-    rank: newRank,
-    tier: newRank === 1 ? 'Master' : newRank <= 2 ? 'Diamond' : newRank <= 3 ? 'Gold' : newRank <= 5 ? 'Silver' : 'Bronze',
-    title: newRank === 1 ? '👑 Tân Vô Địch OTTv2' : `Top ${newRank} Tháp Đấu`,
+    rank: targetRank,
+    tier: targetRank === 1 ? 'Master' : targetRank <= 2 ? 'Diamond' : targetRank <= 3 ? 'Gold' : targetRank <= 5 ? 'Silver' : 'Bronze',
+    title: targetRank === 1 ? '👑 Tân Vô Địch OTTv2' : `Top ${targetRank} Tháp Đấu`,
     author: cleanName,
     description: `Đã leo tháp xuất sắc đánh bại ${defeatedCount} cao thủ!`,
     code: 'botGold',
   };
 
-  // Chèn vào mảng ladder
-  const insertIndex = newRank - 1;
+  // Chèn vào mảng ladder đúng vị trí duy nhất
+  const insertIndex = Math.min(Math.max(targetRank - 1, 0), ladder.length);
   ladder.splice(insertIndex, 0, newProfile);
 
-  // Cập nhật lại số thứ tự rank cho toàn bộ danh sách
+  // Cập nhật lại số thứ tự rank cho toàn bộ danh sách (đảm bảo chuẩn 1..N)
   const updatedLadder = ladder.map((bot, idx) => ({
     ...bot,
     rank: idx + 1,
@@ -188,13 +229,13 @@ export function finalizeGauntletRanking(
 
   saveLadder(updatedLadder);
 
-  gauntletState.userRank = newRank;
+  gauntletState.userRank = targetRank;
   gauntletState.ladder = updatedLadder;
   gauntletState.status = stoppedAtOpponent === null ? 'completed_champion' : 'game_over';
   gauntletState.matchHistory = history;
   notifySubscribers();
 
-  return { newRank, updatedLadder };
+  return { newRank: targetRank, updatedLadder };
 }
 
 /**
