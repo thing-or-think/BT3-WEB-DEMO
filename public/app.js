@@ -54,8 +54,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnReload = document.getElementById('btn-reload');
   const saveSnippetForm = document.getElementById('save-snippet-form');
   const btnSaveCode = document.getElementById('btn-save-code');
+  const btnOAuthLogin = document.getElementById('btn-oauth-login');
   const saveResult = document.getElementById('save-result');
   const gistsList = document.getElementById('gists-list');
+
+  // Xử lý nút OAuth Login
+  if (btnOAuthLogin) {
+    btnOAuthLogin.addEventListener('click', () => {
+      // Kiểm tra nếu đang chạy trên GitHub Pages tĩnh (domain github.io)
+      if (window.location.hostname.endsWith('github.io')) {
+        showError('💡 GitHub Pages là web tĩnh (không có backend Node.js để đổi mã OAuth). Vui lòng dùng [Cách 2: Nhập Token PAT] bên phải để đăng nhập & lưu Cookie 30 ngày ngay lập tức!');
+        patInput.focus();
+        patInput.style.borderColor = '#58a6ff';
+        patInput.style.boxShadow = '0 0 10px rgba(56, 139, 253, 0.5)';
+        setTimeout(() => {
+          patInput.style.boxShadow = '';
+        }, 2500);
+        return;
+      }
+      // Nếu đang chạy trên server Node.js localhost
+      window.location.href = '/api/auth/github';
+    });
+  }
 
   // User Profile elements
   const userAvatar = document.getElementById('user-avatar');
