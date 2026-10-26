@@ -38,9 +38,25 @@ export function initPlayHTMLCommunitySync() {
     }
   });
 
-  // Đẩy user hiện tại lên kênh nếu có
-  if (state.currentUser && state.currentUser.login) {
-    registerUserToCommunity(state.currentUser.login);
+  if (communityPageDataChannel) {
+    try {
+      // 1. Đọc dữ liệu đã có trên Cloud PartyKit
+      const remoteList = communityPageDataChannel.getData();
+      console.log('📡 [PlayHTML Community] Dữ liệu hiện tại trên PartyKit:', remoteList);
+      if (Array.isArray(remoteList) && remoteList.length > 0) {
+        state.mergeCommunityUsers(remoteList);
+      }
+
+      // 2. Nếu user hiện tại đang đăng nhập, bổ sung user đó
+      if (state.currentUser && state.currentUser.login) {
+        state.addCommunityUser(state.currentUser.login);
+      }
+
+      // 3. Đẩy danh sách đã hợp nhất đầy đủ lên Cloud để mọi người cùng thấy
+      syncCommunityUsersList(state.communityUsers);
+    } catch (e) {
+      console.warn('⚠️ [PlayHTML Community] Lỗi đọc/ghi ban đầu:', e);
+    }
   }
 
   renderMemberChips();

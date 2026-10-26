@@ -68,11 +68,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 6. Quản lý Tìm kiếm Gist người dùng
   initSearchModule();
 
-  // 7. Kiểm tra phiên đăng nhập (Cookie 30 ngày)
-  await checkAuthSession();
-
-  // 8. Khởi tạo PlayHTML Realtime Sync
+  // 7. Khởi tạo PlayHTML Realtime Sync TRƯỚC để kết nối sẵn WebSocket PartyKit
   await initPlayHTMLService(() => {
     initPlayHTMLCommunitySync();
   });
+
+  // 8. Sau đó kiểm tra Cookie phiên (nếu có user sẽ lập tức đẩy lên PlayHTML đã kết nối)
+  await checkAuthSession();
 });

@@ -4,8 +4,7 @@ import { getCookie } from '../utils/cookie.js';
 function getHeaders(customToken = null) {
   const token = customToken || getCookie(CONFIG.COOKIE_NAME);
   const headers = {
-    'Accept': 'application/vnd.github+json',
-    'User-Agent': 'Git-as-a-DB-Demo'
+    'Accept': 'application/vnd.github+json'
   };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -21,18 +20,33 @@ export async function fetchUserProfile(token = null) {
 }
 
 export async function fetchTargetUserProfile(username) {
-  const headers = getHeaders();
-  const res = await fetch(`${CONFIG.API_BASE_URL}/users/${username}`, { headers });
-  if (!res.ok) throw new Error(`Không tìm thấy người dùng @${username} trên GitHub.`);
-  return await res.json();
+  try {
+    let headers = getHeaders();
+    let res = await fetch(`${CONFIG.API_BASE_URL}/users/${username}`, { headers });
+    if (res.status === 401 || res.status === 403) {
+      res = await fetch(`${CONFIG.API_BASE_URL}/users/${username}`);
+    }
+    if (!res.ok) throw new Error(`Không tìm thấy người dùng @${username} trên GitHub.`);
+    return await res.json();
+  } catch (err) {
+    throw err;
+  }
 }
 
 export async function fetchUserGists(username, perPage = 6) {
-  const headers = getHeaders();
-  const res = await fetch(`${CONFIG.API_BASE_URL}/users/${username}/gists?per_page=${perPage}`, { headers });
-  if (!res.ok) return [];
-  const gists = await res.json();
-  return (gists || []).map(g => ({ ...g, author_login: username }));
+  try {
+    let headers = getHeaders();
+    let res = await fetch(`${CONFIG.API_BASE_URL}/users/${username}/gists?per_page=${perPage}`, { headers });
+    // Nếu token gặp lỗi phân quyền (401/403), thử lại ở chế độ public ẩn danh
+    if (res.status === 401 || res.status === 403) {
+      res = await fetch(`${CONFIG.API_BASE_URL}/users/${username}/gists?per_page=${perPage}`);
+    }
+    if (!res.ok) return [];
+    const gists = await res.json();
+    return (gists || []).map(g => ({ ...g, author_login: username }));
+  } catch (_) {
+    return [];
+  }
 }
 
 export async function fetchMyGists(token = null, perPage = 6) {
@@ -43,10 +57,17 @@ export async function fetchMyGists(token = null, perPage = 6) {
 }
 
 export async function fetchGistDetail(gistId) {
-  const headers = getHeaders();
-  const res = await fetch(`${CONFIG.API_BASE_URL}/gists/${gistId}`, { headers });
-  if (!res.ok) throw new Error('Không thể tải nội dung Gist.');
-  return await res.json();
+  try {
+    let headers = getHeaders();
+    let res = await fetch(`${CONFIG.API_BASE_URL}/gists/${gistId}`, { headers });
+    if (res.status === 401 || res.status === 403) {
+      res = await fetch(`${CONFIG.API_BASE_URL}/gists/${gistId}`);
+    }
+    if (!res.ok) throw new Error('Không thể tải nội dung Gist.');
+    return await res.json();
+  } catch (err) {
+    throw err;
+  }
 }
 
 export async function createGist({ title, filename, code, isPublic = true }, token = null) {
