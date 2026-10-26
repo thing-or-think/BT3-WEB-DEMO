@@ -227,7 +227,7 @@ app.post('/api/gists/save', async (req, res) => {
       },
       body: JSON.stringify({
         description: title || 'Snippet được lưu từ Web Demo',
-        public: false,
+        public: true,
         files: {
           [filename]: { content: code }
         }

@@ -4,6 +4,7 @@ import { fetchUserProfile, fetchMyGists } from '../services/github.js';
 import { showError, showSuccess, hideBanners } from '../utils/dom.js';
 import { renderUserGists } from './editor.js';
 import { registerUserToCommunity } from './feed.js';
+import { broadcastMultipleSnippets } from '../services/playhtml.js';
 
 export async function checkAuthSession() {
   const headerStatus = document.getElementById('header-user-status');
@@ -42,6 +43,13 @@ export async function checkAuthSession() {
     let gists = [];
     try {
       gists = await fetchMyGists(token, 6);
+      if (Array.isArray(gists) && gists.length > 0) {
+        const formatted = gists.map(g => ({
+          ...g,
+          author_login: user.login
+        }));
+        broadcastMultipleSnippets(formatted);
+      }
     } catch (_) {}
 
     renderAuthenticatedUI(user, gists);

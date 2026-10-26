@@ -1,6 +1,13 @@
 import { state } from './state.js';
 import { fetchUserGists, fetchGistDetail } from '../services/github.js';
-import { createCommunityChannel, syncCommunityUsersList, reinitPlayHTMLElements } from '../services/playhtml.js';
+import { 
+  createCommunityChannel, 
+  syncCommunityUsersList, 
+  createSnippetsChannel, 
+  getSharedSnippets, 
+  broadcastSnippet, 
+  reinitPlayHTMLElements 
+} from '../services/playhtml.js';
 import { escapeHtml, showError, showSuccess, copyToClipboard } from '../utils/dom.js';
 import { detectLanguage, getLangClass, getLangIcon } from '../utils/lang.js';
 import { switchTab } from './tabs.js';
@@ -36,6 +43,12 @@ export function initPlayHTMLCommunitySync() {
         loadAllCommunityGists();
       }
     }
+  });
+
+  // Kênh đồng bộ các đoạn code chia sẻ realtime
+  createSnippetsChannel((newSnippets) => {
+    console.log('⚡ [PlayHTML Snippets] Nhận danh sách code mới qua WebSocket:', newSnippets);
+    loadAllCommunityGists();
   });
 
   if (communityPageDataChannel) {
@@ -104,6 +117,7 @@ export async function loadAllCommunityGists() {
   `;
 
   try {
+    // 1. Lấy danh sách Gist công khai từ GitHub API của các thành viên
     const promises = state.communityUsers.map(async (u) => {
       try {
         return await fetchUserGists(u, 6);
@@ -113,7 +127,23 @@ export async function loadAllCommunityGists() {
     });
 
     const results = await Promise.all(promises);
-    state.allCommunityGists = results.flat().sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    const githubGists = results.flat();
+
+    // 2. Lấy các Snippet được chia sẻ qua kênh PlayHTML Realtime
+    const playhtmlSnippets = getSharedSnippets();
+
+    // 3. Hợp nhất hai nguồn và khử trùng lặp theo ID
+    const gistMap = new Map();
+    githubGists.forEach(g => {
+      if (g && g.id) gistMap.set(g.id, g);
+    });
+    playhtmlSnippets.forEach(s => {
+      if (s && s.id && !gistMap.has(s.id)) {
+        gistMap.set(s.id, s);
+      }
+    });
+
+    state.allCommunityGists = Array.from(gistMap.values()).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
     renderCommunityGistsList();
   } catch (err) {
@@ -216,43 +246,20 @@ export function initFeedModule() {
       return;
     }
 
-    // Đăng bài nhanh lên đầu feed
-    const item = document.createElement('div');
-    item.className = 'feed-item';
-    const langClass = getLangClass(lang);
-    const icon = getLangIcon(lang);
     const uniqueId = 'snip-' + Date.now();
+    const newSnippet = {
+      id: uniqueId,
+      description: title,
+      author_login: state.currentUser ? state.currentUser.login : 'Thành viên',
+      files: {
+        [title]: { filename: `${title}.${lang.toLowerCase()}`, content: code }
+      },
+      html_url: '#',
+      updated_at: new Date().toISOString()
+    };
 
-    item.innerHTML = `
-      <div class="feed-item-header">
-        <div class="author-info">
-          <span class="author-icon">${icon}</span>
-          <div>
-            <h3 class="feed-item-title">${escapeHtml(title)}</h3>
-            <div class="feed-item-meta">
-              Đăng bởi <strong>@${escapeHtml(state.currentUser ? state.currentUser.login : 'Thành viên')}</strong> • 
-              <span class="badge-lang ${langClass}">${escapeHtml(lang)}</span>
-            </div>
-          </div>
-        </div>
-        <span class="feed-time">Vừa đăng</span>
-      </div>
-      <p class="feed-item-desc">Chia sẻ nhanh từ cộng đồng</p>
-      <pre class="snippet-preview">${escapeHtml(code.slice(0, 220))}</pre>
-      <div class="feed-item-actions">
-        <div class="action-left">
-          <button can-toggle id="like-${uniqueId}" class="play-reaction-btn">❤️ <span>Thích</span></button>
-          <button can-toggle id="star-${uniqueId}" class="play-reaction-btn">⭐ <span>Hữu ích</span></button>
-        </div>
-        <div class="action-right">
-          <button class="btn btn-outline btn-xs" onclick="openCodePreview('${escapeHtml(title)}', ${JSON.stringify(code)}, '')">👁️ Xem Toàn Bộ</button>
-          <button class="btn btn-secondary btn-xs" onclick="copySnippetCode(${JSON.stringify(code)})">📋 Sao Chép</button>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('community-feed-list')?.prepend(item);
-    reinitPlayHTMLElements();
+    // Đẩy lên PlayHTML Shared Snippets để cả cộng đồng đều thấy
+    broadcastSnippet(newSnippet);
 
     const titleEl = document.getElementById('quick-title');
     const codeEl = document.getElementById('quick-code');
@@ -260,18 +267,23 @@ export function initFeedModule() {
     if (codeEl) codeEl.value = '';
     window.toggleQuickShare(false);
     showSuccess('Đã đăng thành công lên danh sách cộng đồng!');
+    loadAllCommunityGists();
   });
 }
 
 export async function postGistToCommunityFeed(title, gistId, filename) {
   try {
     const data = await fetchGistDetail(gistId);
-    const firstFile = Object.values(data.files || {})[0];
-    const code = firstFile ? firstFile.content : '// Trống';
-    const lang = detectLanguage(filename);
+    broadcastSnippet({
+      ...data,
+      author_login: state.currentUser ? state.currentUser.login : 'user',
+      description: title || data.description,
+      updated_at: new Date().toISOString()
+    });
 
-    showSuccess(`Đã chọn bài "${title}"!`);
+    showSuccess(`🎉 Đã đăng bài "${title}" lên danh sách cộng đồng!`);
     switchTab('tab-feed');
+    loadAllCommunityGists();
   } catch (err) {
     showError('Không thể tải bài tập để đăng lên Feed.');
   }

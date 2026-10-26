@@ -6,6 +6,7 @@ import { checkAuthSession } from './auth.js';
 import { switchTab } from './tabs.js';
 import { fetchAndOpenGist } from './search.js';
 import { postGistToCommunityFeed, detectLanguage } from './feed.js';
+import { broadcastSnippet } from '../services/playhtml.js';
 
 export function renderUserGists(gists) {
   const gistsList = document.getElementById('gists-list');
@@ -95,6 +96,13 @@ export function initEditorModule() {
     try {
       const result = await performSaveGist();
       if (!result) return;
+
+      broadcastSnippet({
+        ...result.data,
+        author_login: state.currentUser ? state.currentUser.login : 'user',
+        description: result.title,
+        updated_at: new Date().toISOString()
+      });
 
       showSuccess('🎉 Đã lưu vào GitHub và đăng lên Danh sách Cộng đồng!');
       switchTab('tab-feed');
