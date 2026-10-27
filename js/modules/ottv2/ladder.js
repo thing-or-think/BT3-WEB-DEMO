@@ -1,5 +1,6 @@
 import { DEFAULT_LADDER_BOTS } from './bots.js';
 import { scanCommunityPlayersWithContestGists, getActiveContestTag } from '../../services/contestGist.js';
+import { createOttv2LadderChannel, broadcastOttv2Ladder, getSharedOttv2Ladder, } from '../../services/playhtml.js';
 const STORAGE_KEY = 'ottv2_gauntlet_ladder_v1';
 let gauntletState = {
     ladder: [...DEFAULT_LADDER_BOTS],
@@ -104,7 +105,64 @@ export function saveLadder(ladder) {
     catch (e) {
         console.warn('Lỗi lưu ladder:', e);
     }
+    // ĐỒNG BỘ REALTIME LÊN PLAYHTML (PARTYKIT CLOUD) TOÀN CẦU
+    broadcastOttv2Ladder(normalized);
     notifySubscribers();
+}
+/**
+ * Khởi tạo kênh đồng bộ Realtime cho Bảng Xếp Hạng Thang Bậc qua PlayHTML
+ */
+export function initPlayHTMLLadderSync() {
+    createOttv2LadderChannel((remoteLadder) => {
+        if (Array.isArray(remoteLadder) && remoteLadder.length > 0) {
+            console.log('⚡ [PlayHTML Realtime] Nhận Thang Bậc mới từ WebSocket:', remoteLadder);
+            // Dọn dẹp và khử trùng lặp
+            const seen = new Set();
+            const deduplicated = [];
+            for (const bot of remoteLadder) {
+                const key = (bot.name || '').trim().toLowerCase();
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    deduplicated.push({
+                        ...bot,
+                        avatar: bot.avatar && bot.avatar.includes('http') ? '👤' : (bot.avatar || '👤')
+                    });
+                }
+            }
+            const normalized = deduplicated.map((b, idx) => ({ ...b, rank: idx + 1 }));
+            gauntletState.ladder = normalized;
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+            }
+            catch (_) { }
+            notifySubscribers();
+        }
+    });
+    // Kiểm tra dữ liệu hiện có trên Cloud PartyKit
+    const cloudData = getSharedOttv2Ladder();
+    if (Array.isArray(cloudData) && cloudData.length > 0) {
+        console.log('📡 [PlayHTML Realtime] Tải Thang Bậc hiện có từ PartyKit Cloud:', cloudData.length, 'người');
+        const seen = new Set();
+        const deduplicated = [];
+        for (const bot of cloudData) {
+            const key = (bot.name || '').trim().toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                deduplicated.push(bot);
+            }
+        }
+        const normalized = deduplicated.map((b, idx) => ({ ...b, rank: idx + 1 }));
+        gauntletState.ladder = normalized;
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+        }
+        catch (_) { }
+        notifySubscribers();
+    }
+    else {
+        // Nếu trên Cloud chưa có thì đẩy dữ liệu local hiện tại lên để làm mốc ban đầu
+        broadcastOttv2Ladder(gauntletState.ladder);
+    }
 }
 /**
  * Reset bảng xếp hạng về mặc định

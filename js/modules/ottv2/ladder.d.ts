@@ -9,6 +9,10 @@ export declare function loadLadder(): BotProfile[];
  */
 export declare function saveLadder(ladder: BotProfile[]): void;
 /**
+ * Khởi tạo kênh đồng bộ Realtime cho Bảng Xếp Hạng Thang Bậc qua PlayHTML
+ */
+export declare function initPlayHTMLLadderSync(): void;
+/**
  * Reset bảng xếp hạng về mặc định
  */
 export declare function resetLadder(): void;

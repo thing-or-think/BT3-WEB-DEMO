@@ -5,6 +5,7 @@ import { initFeedModule, initPlayHTMLCommunitySync, postGistToCommunityFeed } fr
 import { initSearchModule, fetchAndOpenGist } from './modules/search.js';
 import { initModal, openCodePreview, closeCodeModal, copyModalCode, forkCurrentModalCode } from './modules/modal.js';
 import { initArenaUI } from './modules/ottv2/arenaUI.js';
+import { initPlayHTMLLadderSync } from './modules/ottv2/ladder.js';
 import { initPlayHTMLService } from './services/playhtml.js';
 import { copyToClipboard, showError, showSuccess } from './utils/dom.js';
 import { forkGist } from './services/github.js';
@@ -76,6 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 8. Khởi tạo PlayHTML Realtime Sync TRƯỚC để kết nối sẵn WebSocket PartyKit
   await initPlayHTMLService(() => {
     initPlayHTMLCommunitySync();
+    initPlayHTMLLadderSync();
   });
 
   // 8. Sau đó kiểm tra Cookie phiên (nếu có user sẽ lập tức đẩy lên PlayHTML đã kết nối)
